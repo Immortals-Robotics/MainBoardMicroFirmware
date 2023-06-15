@@ -8,6 +8,9 @@ project(micro-firmware C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
+set(PICO_BOARD_HEADER_DIRS ${CMAKE_CURRENT_SOURCE_DIR})
+set(PICO_BOARD main-board)
+
 # initialize the Raspberry Pi Pico SDK
 pico_sdk_init()
 
