@@ -19,18 +19,11 @@ int main()
     
     spi_init(spi_default, 4 * 1000 * 1000);
     spi_set_slave(spi_default, true);
-    spi_set_format(spi_default, 8, 1, 1, SPI_MSB_FIRST);
+    spi_set_format(spi_default, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
     gpio_set_function(MAIN_BOARD_SPI_RX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(MAIN_BOARD_SPI_TX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(MAIN_BOARD_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(MAIN_BOARD_SPI_CSN_PIN, GPIO_FUNC_SPI);
-
-    bi_decl(bi_4pins_with_func(
-        MAIN_BOARD_SPI_RX_PIN,
-        MAIN_BOARD_SPI_TX_PIN,
-        MAIN_BOARD_SPI_SCK_PIN,
-        MAIN_BOARD_SPI_CSN_PIN,
-        GPIO_FUNC_SPI));
 
     for (size_t i = 0; i < BUF_LEN; ++i)
     {

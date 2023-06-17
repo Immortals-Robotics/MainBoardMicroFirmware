@@ -15,7 +15,7 @@ set(PICO_BOARD main-board)
 pico_sdk_init()
 
 add_executable(micro-firmware
-  main.c
+  main.cpp
 )
 
 pico_enable_stdio_usb(micro-firmware 0)
