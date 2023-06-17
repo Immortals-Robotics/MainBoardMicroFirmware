@@ -22,4 +22,5 @@ pico_enable_stdio_usb(micro-firmware 0)
 pico_enable_stdio_uart(micro-firmware 1)
 
 pico_add_extra_outputs(micro-firmware)
-target_link_libraries(micro-firmware pico_stdlib)
+
+target_link_libraries(micro-firmware pico_stdlib hardware_spi)
