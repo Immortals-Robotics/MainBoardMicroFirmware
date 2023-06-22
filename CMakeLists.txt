@@ -59,6 +59,7 @@ add_protobuf_generate_command(NANO_PROTO_FILES PROTO_SRCS PROTO_HDRS)
 
 add_executable(micro-firmware
   main.cpp
+  PI4IOE5V6416.h
   ${PROTO_SRCS} ${PROTO_HDRS}
   ${NANOPB_DIR}/pb.h
   ${NANOPB_DIR}/pb_common.h
@@ -77,4 +78,7 @@ pico_enable_stdio_uart(micro-firmware 1)
 
 pico_add_extra_outputs(micro-firmware)
 
-target_link_libraries(micro-firmware pico_stdlib hardware_spi)
+target_link_libraries(micro-firmware 
+  pico_stdlib
+  hardware_spi
+  hardware_i2c)
