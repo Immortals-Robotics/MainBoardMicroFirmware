@@ -122,11 +122,6 @@ public:
     void attach(uint8_t i2c_addr = BASE_I2C_ADDR) {
         this->i2c = i2c0;
         this->addr = i2c_addr;
-
-        i2c_init(i2c, 400 * 1000);
-
-        gpio_set_function(MAIN_BOARD_I2C_0_SDA_PIN, GPIO_FUNC_I2C);
-        gpio_set_function(MAIN_BOARD_I2C_0_SCL_PIN, GPIO_FUNC_I2C);
     }
 
     uint16_t read() {

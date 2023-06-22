@@ -11,6 +11,8 @@
 
 #include "PI4IOE5V6416.h"
 
+#include "3rdparty/PAC194x_5x/PAC194x_5x.h"
+
 #define SPI_FREQ (4 * 1000 * 1000)
 
 #define BUFFER_LEN 128
@@ -123,10 +125,50 @@ void init_ioex()
     ioex.write(IOEX_LED_SWITCH         , PI4IOE5V64XX::Level::L);
 }
 
+void init_i2c0()
+{
+    i2c_init(i2c0, 400 * 1000);
+
+    gpio_set_function(MAIN_BOARD_I2C_0_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(MAIN_BOARD_I2C_0_SCL_PIN, GPIO_FUNC_I2C);
+}
+
+void test_pac1954()
+{
+    PAC194X5X_DEVICE_CONTEXT pacDevice;
+    
+    PAC194X5X_DEVICE_INIT pacInit = 
+    {
+        .i2cAddress = 0x13,
+        .syncMode = false,
+        .i2cHandle = i2c0,
+        .rsense = { 1000, 2000, 1000, 1000 },
+        .VrailToVbusRatio = {  1.0f, 1.0f, 1.0f, 1.0f },
+    };
+
+    uint16_t init_result = PAC194x5x_Device_Initialize(&pacDevice, pacInit);
+
+    sleep_ms(10);
+
+    if (init_result == PAC194X5X_SUCCESS)
+    {
+        //PAC194x5x_Device_Initialize() records in the device context the device ID register values
+        printf("\nProduct ID      : 0x%X", pacDevice.deviceID.product);
+        printf("\nManufacturer ID : 0x%X", pacDevice.deviceID.manufacturer);
+        printf("\nRevision ID     : 0x%X", pacDevice.deviceID.revision);
+
+        // TODO: read the measurements
+    }
+}
+
 int main()
 {
     stdio_init_all();
-    
+
+    init_i2c0();
+
+    test_pac1954();
+
     init_ioex();
 
     while (true)

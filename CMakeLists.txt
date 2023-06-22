@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 set(PROTOS_DIR "protos")
 set(NANOPB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/nanopb")
+set(PAC194X_5X_LIB "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/PAC194x_5x")
 
 macro(add_protobuf_generate_command PROTO_DEF PROTO_SRCS PROTO_HDRS)
   set(${PROTO_SRCS})
@@ -68,6 +69,11 @@ add_executable(micro-firmware
   ${NANOPB_DIR}/pb_decode.c
   ${NANOPB_DIR}/pb_encode.h
   ${NANOPB_DIR}/pb_encode.c
+  ${PAC194X_5X_LIB}/PAC194x_5x.c
+  ${PAC194X_5X_LIB}/PAC194x_5x.h
+  ${PAC194X_5X_LIB}/PAC194x_5x_definitions.h
+  ${PAC194X_5X_LIB}/PAC194x_5x_i2c.h
+  ${PAC194X_5X_LIB}/PAC194x_5x_mutex.h
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/${PROTOS_DIR}")
