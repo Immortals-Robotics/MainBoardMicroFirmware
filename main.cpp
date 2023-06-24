@@ -15,6 +15,8 @@
 
 #include "ball-detector.h"
 
+#include "mikona.h"
+
 #define SPI_FREQ (4 * 1000 * 1000)
 
 #define BUFFER_LEN 128
@@ -175,6 +177,18 @@ void test_ir()
     }
 }
 
+void test_mikona()
+{
+    Mikona mikona(i2c0);
+    mikona.init();
+
+    while(true)
+    {
+        printf("Mikona status: %d, voltage: %f\n", mikona.getStatus(), mikona.getVoltage());
+        sleep_ms(100);
+    }
+}
+
 int main()
 {
     stdio_init_all();
@@ -182,6 +196,8 @@ int main()
     test_ir();
 
     init_i2c0();
+
+    test_mikona();
 
     test_pac1954();
 

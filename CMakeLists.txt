@@ -61,6 +61,8 @@ add_protobuf_generate_command(NANO_PROTO_FILES PROTO_SRCS PROTO_HDRS)
 add_executable(micro-firmware
   ball-detector.h
   ball-detector.cpp
+  mikona.h
+  mikona.cpp
   PI4IOE5V6416.h
   main.cpp
   ${PROTO_SRCS} ${PROTO_HDRS}
