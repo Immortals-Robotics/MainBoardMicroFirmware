@@ -59,8 +59,10 @@ add_subdirectory(${PROTOS_DIR})
 add_protobuf_generate_command(NANO_PROTO_FILES PROTO_SRCS PROTO_HDRS)
 
 add_executable(micro-firmware
-  main.cpp
+  ball-detector.h
+  ball-detector.cpp
   PI4IOE5V6416.h
+  main.cpp
   ${PROTO_SRCS} ${PROTO_HDRS}
   ${NANOPB_DIR}/pb.h
   ${NANOPB_DIR}/pb_common.h

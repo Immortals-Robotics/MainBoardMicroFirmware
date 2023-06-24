@@ -4,8 +4,6 @@
 #include <pico/stdlib.h>
 #include <pico/binary_info.h>
 #include <hardware/spi.h>
-#include <hardware/pwm.h>
-#include <hardware/adc.h>
 
 #include <pb_encode.h>
 #include <pb_decode.h>
@@ -14,6 +12,8 @@
 #include "PI4IOE5V6416.h"
 
 #include "3rdparty/PAC194x_5x/PAC194x_5x.h"
+
+#include "ball-detector.h"
 
 #define SPI_FREQ (4 * 1000 * 1000)
 
@@ -165,35 +165,12 @@ void test_pac1954()
 
 void test_ir()
 {
-    adc_init();
-    
-    // Make sure GPIO is high-impedance, no pullups etc
-    adc_gpio_init(MAIN_BOARD_IR_ADC_PIN);
-    // Select ADC input 0 (GPIO26)
-    adc_select_input(3);
-
-    gpio_set_function(MAIN_BOARD_IR_PWM_PIN, GPIO_FUNC_PWM);
-    const uint slice_num = pwm_gpio_to_slice_num(MAIN_BOARD_IR_PWM_PIN);
-
-    // Get some sensible defaults for the slice configuration. By default, the
-    // counter is allowed to wrap over its maximum range (0 to 2**16-1)
-    pwm_config config = pwm_get_default_config();
-    // Set divider, reduces counter clock to sysclock/this value
-    //pwm_config_set_clkdiv(&config, 4.f);
-    pwm_config_set_wrap(&config, 1024);
-    // Load the configuration into our PWM slice, and set it running.
-    pwm_init(slice_num, &config, true);
-
-    pwm_set_gpio_level(MAIN_BOARD_IR_PWM_PIN, 512);
+    BallDetector ballDetector;
+    ballDetector.init();
 
     while (1)
     {
-        // 12-bit conversion, assume max value == ADC_VREF == 3.3 V
-        const float conversion_factor = 3.3f / (1 << 12);
-        const uint16_t result_raw = adc_read();
-        const float result = result_raw * conversion_factor;
-        const bool ball_detected = result > 3.0f;
-        printf("voltage: %f V, Ball: %d\n", result, ball_detected);
+        printf("Ball detected: %d\n", ballDetector.ball_detected());
         sleep_ms(50);
     }
 }
