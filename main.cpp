@@ -23,16 +23,16 @@ int main()
     gpio_set_function(MAIN_BOARD_I2C_1_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(MAIN_BOARD_I2C_1_SCL_PIN, GPIO_FUNC_I2C);
 
-    Ioex ioex{};
-    ioex.init(i2c0);
+    Ioex ioex{i2c0};
+    ioex.init();
 
-    Mikona mikona(i2c0);
+    Mikona mikona{i2c0};
     mikona.init();
 
-    PowerMonitor powerMonitor;
-    powerMonitor.init(i2c0);
+    PowerMonitor powerMonitor{i2c0};
+    powerMonitor.init();
 
-    BallDetector ballDetector;
+    BallDetector ballDetector{};
     ballDetector.init();
 
     Protocol protocol{};

@@ -26,9 +26,9 @@ public:
         Warning,
     };
 
-    Ioex() = default;
+    Ioex(i2c_inst_t* i2c);
 
-    void init(i2c_inst_t* i2c);
+    void init();
 
     bool getButton();
     bool getDip(uint8_t index);
@@ -42,5 +42,6 @@ public:
 
 
 private:
+    i2c_inst_t* const m_i2c;
     PI4IOE5V6416 m_ioex;
 };

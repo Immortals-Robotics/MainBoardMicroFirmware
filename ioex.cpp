@@ -19,10 +19,15 @@
 #define IOEX_ID_BIT_3 PI4IOE5V64XX::Port::P16
 #define IOEX_ID_BIT_1 PI4IOE5V64XX::Port::P17
 
-void Ioex::init(i2c_inst_t* i2c)
+Ioex::Ioex(i2c_inst_t* const i2c)
+    : m_i2c(i2c)
+{
+}
+
+void Ioex::init()
 {
     m_ioex = PI4IOE5V6416();
-    m_ioex.attach(i2c);
+    m_ioex.attach(m_i2c);
 
     m_ioex.polarity(PI4IOE5V64XX::Polarity::ORIGINAL_ALL);
 

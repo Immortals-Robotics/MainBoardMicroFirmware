@@ -3,13 +3,18 @@
 #include <stdio.h>
 #include <pico/stdlib.h>
 
-bool PowerMonitor::init(i2c_inst_t* i2c)
+PowerMonitor::PowerMonitor(i2c_inst_t* const i2c)
+    : m_i2c(i2c)
+{
+}
+
+bool PowerMonitor::init()
 {
     const PAC194X5X_DEVICE_INIT pacInit = 
     {
         .i2cAddress = kI2cAddress,
         .syncMode = false,
-        .i2cHandle = i2c,
+        .i2cHandle = m_i2c,
         .rsense = { 1000, 2000, 0, 0 },
         .VrailToVbusRatio = {  1.0f, 1.0f, 1.0f, 1.0f },
     };

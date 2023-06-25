@@ -13,9 +13,9 @@ public:
         V24,
     };
 
-    PowerMonitor() = default;
+    PowerMonitor(i2c_inst_t* i2c);
 
-    bool init(i2c_inst_t* i2c);
+    bool init();
 
     bool isConnected() const { return m_connected; }
 
@@ -26,6 +26,7 @@ public:
 private:
     static constexpr uint16_t kI2cAddress = 0x13;
 
+    i2c_inst_t* const m_i2c;
     PAC194X5X_DEVICE_CONTEXT m_pacDevice;
     bool m_connected = false;
 };
