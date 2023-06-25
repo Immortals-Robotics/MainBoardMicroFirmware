@@ -101,6 +101,9 @@ void Mikona::clearFault()
 
 void Mikona::kickA(const uint16_t pulseWidth)
 {
+    if (pulseWidth == 0)
+        return;
+
     reg_u16 kick_reg;
     kick_reg.u16 = pulseWidth;
 
@@ -109,6 +112,9 @@ void Mikona::kickA(const uint16_t pulseWidth)
 
 void Mikona::kickB(uint16_t pulseWidth)
 {
+    if (pulseWidth == 0)
+        return;
+        
     reg_u16 kick_reg;
     kick_reg.u16 = pulseWidth;
 

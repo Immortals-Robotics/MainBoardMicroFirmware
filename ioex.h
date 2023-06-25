@@ -10,7 +10,7 @@ public:
     {
         None,
         Charging,
-        Full,
+        Done,
     };
 
     enum class LedWifi

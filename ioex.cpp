@@ -112,7 +112,7 @@ void Ioex::setLedIr(const bool enable)
 void Ioex::setLedMikona(const LedMikona led)
 {
     m_ioex.write(IOEX_LED_MIKONA_CHARGING, led == LedMikona::Charging ? PI4IOE5V64XX::Level::H : PI4IOE5V64XX::Level::L);
-    m_ioex.write(IOEX_LED_MIKONA_FULL,     led == LedMikona::Full     ? PI4IOE5V64XX::Level::H : PI4IOE5V64XX::Level::L);
+    m_ioex.write(IOEX_LED_MIKONA_FULL,     led == LedMikona::Done     ? PI4IOE5V64XX::Level::H : PI4IOE5V64XX::Level::L);
 }
 
 void Ioex::setLedWifi(const LedWifi led)

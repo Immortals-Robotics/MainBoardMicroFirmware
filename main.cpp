@@ -9,19 +9,19 @@
 #include "power_monitor.h"
 #include "protocol.h"
 
-void init_i2c0()
-{
-    i2c_init(i2c0, 400 * 1000);
-
-    gpio_set_function(MAIN_BOARD_I2C_0_SDA_PIN, GPIO_FUNC_I2C);
-    gpio_set_function(MAIN_BOARD_I2C_0_SCL_PIN, GPIO_FUNC_I2C);
-}
-
 int main()
 {
     stdio_init_all();
 
-    init_i2c0();
+    // Initialize I2C 0
+    i2c_init(i2c0, 400 * 1000);
+    gpio_set_function(MAIN_BOARD_I2C_0_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(MAIN_BOARD_I2C_0_SCL_PIN, GPIO_FUNC_I2C);
+
+    // Initialize I2C 1
+    i2c_init(i2c1, 400 * 1000);
+    gpio_set_function(MAIN_BOARD_I2C_1_SDA_PIN, GPIO_FUNC_I2C);
+    gpio_set_function(MAIN_BOARD_I2C_1_SCL_PIN, GPIO_FUNC_I2C);
 
     Ioex ioex{};
     ioex.init(i2c0);
@@ -38,7 +38,14 @@ int main()
     Protocol protocol{};
     protocol.init();
 
-    for (size_t i = 0; ; ++i)
+    gpio_init(MAIN_BOARD_BUZZER_PIN);
+    gpio_set_dir(MAIN_BOARD_BUZZER_PIN, GPIO_OUT);
+    gpio_put(MAIN_BOARD_BUZZER_PIN, 0);
+
+    bool faultMicro = false;
+    bool faultMainBoard = false;
+
+    while(true)
     {
         protocol.transceive_blocking();
 
@@ -46,7 +53,30 @@ int main()
         const bool success = protocol.consume_rx_buffer(&command);
         if (success)
         {
-            // TODO: execute command
+            if (command.has_mikona)
+            {
+                mikona.setCharge(command.mikona.charge);
+                mikona.setDischarge(command.mikona.discharge);
+
+                mikona.kickA(command.mikona.kick_a);
+                mikona.kickB(command.mikona.kick_b);
+            }
+
+            if (command.has_led)
+            {
+                if (command.led.wifi_acitivity)
+                    ioex.setLedWifi(Ioex::LedWifi::Activity);
+                else if (command.led.wifi_connected)
+                    ioex.setLedWifi(Ioex::LedWifi::Connected);
+                else
+                    ioex.setLedWifi(Ioex::LedWifi::None);
+
+                faultMainBoard = command.led.fault;
+                ioex.setLedFault(faultMainBoard || faultMicro);
+            }
+
+            // TODO: improve buzzer
+            gpio_put(MAIN_BOARD_BUZZER_PIN, command.buzzer);
         }
 
         // Fill status
@@ -87,7 +117,6 @@ int main()
             status.motor_d.status = gpio_get(MAIN_BOARD_MD_CTRL_STATUS_PIN);
             status.motor_d.fault  = gpio_get(MAIN_BOARD_MD_DRV_FAULT_PIN);
 
-            // TODO: fill power monitor status
             status.power_5v.voltage = powerMonitor.getVoltage(PowerMonitor::Rail::V5);
             status.power_5v.current = powerMonitor.getCurrent(PowerMonitor::Rail::V5);
             status.power_5v.power   = powerMonitor.getPower  (PowerMonitor::Rail::V5);
@@ -96,7 +125,28 @@ int main()
             status.power_24v.current = powerMonitor.getCurrent(PowerMonitor::Rail::V24);
             status.power_24v.power   = powerMonitor.getPower  (PowerMonitor::Rail::V24);
 
+            faultMicro = 
+                status.mikona.fault  ||
+                status.motor_1.fault ||
+                status.motor_2.fault ||
+                status.motor_3.fault ||
+                status.motor_4.fault ||
+                status.motor_d.fault;
+            ioex.setLedFault(faultMainBoard || faultMicro);
+
             protocol.fill_tx_buffer(status);
+        }
+
+        {
+            ioex.setLedIr(ballDetector.ball_detected());
+
+            if (mikona.getStatus().done)
+                ioex.setLedMikona(Ioex::LedMikona::Done);
+            else if (mikona.getStatus().charge)
+                ioex.setLedMikona(Ioex::LedMikona::Charging);
+            else
+                ioex.setLedMikona(Ioex::LedMikona::None);
+            
         }
     }
 }
