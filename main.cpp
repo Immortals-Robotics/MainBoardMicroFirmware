@@ -9,13 +9,11 @@
 #include <pb_decode.h>
 #include "immortals/micro.pb.h"
 
-#include "PI4IOE5V6416.h"
-
 #include "3rdparty/PAC194x_5x/PAC194x_5x.h"
 
 #include "ball-detector.h"
-
 #include "mikona.h"
+#include "ioex.h"
 
 #define SPI_FREQ (4 * 1000 * 1000)
 
@@ -54,80 +52,6 @@ bool consume_rx_buffer(Immortals_Protos_MicroCommand* const message, const uint8
     return true;
 }
 
-#define IOEX_DIP_3 PI4IOE5V64XX::Port::P00
-#define IOEX_DIP_2 PI4IOE5V64XX::Port::P01
-#define IOEX_DIP_1 PI4IOE5V64XX::Port::P02
-#define IOEX_DIP_0 PI4IOE5V64XX::Port::P03
-#define IOEX_BUTTON PI4IOE5V64XX::Port::P04
-
-#define IOEX_LED_FAULT           PI4IOE5V64XX::Port::P05
-#define IOEX_LED_IR              PI4IOE5V64XX::Port::P06
-#define IOEX_LED_MIKONA_CHARGING PI4IOE5V64XX::Port::P07
-#define IOEX_LED_MIKONA_FULL     PI4IOE5V64XX::Port::P10
-#define IOEX_LED_WIFI_ACTIVITY   PI4IOE5V64XX::Port::P11
-#define IOEX_LED_WIFI_CONNECTED  PI4IOE5V64XX::Port::P12
-#define IOEX_LED_SWITCH          PI4IOE5V64XX::Port::P13
-
-#define IOEX_ID_BIT_2 PI4IOE5V64XX::Port::P14
-#define IOEX_ID_BIT_0 PI4IOE5V64XX::Port::P15
-#define IOEX_ID_BIT_3 PI4IOE5V64XX::Port::P16
-#define IOEX_ID_BIT_1 PI4IOE5V64XX::Port::P17
-
-PI4IOE5V6416 ioex;
-
-void init_ioex()
-{
-    ioex = PI4IOE5V6416();
-    ioex.attach();
-    ioex.polarity(PI4IOE5V64XX::Polarity::ORIGINAL_ALL);
-
-    ioex.direction(IOEX_DIP_3 , PI4IOE5V64XX::Direction::IN);
-    ioex.direction(IOEX_DIP_2 , PI4IOE5V64XX::Direction::IN);
-    ioex.direction(IOEX_DIP_1 , PI4IOE5V64XX::Direction::IN);
-    ioex.direction(IOEX_DIP_0 , PI4IOE5V64XX::Direction::IN);
-    ioex.direction(IOEX_BUTTON, PI4IOE5V64XX::Direction::IN);
-
-    ioex.direction(IOEX_LED_FAULT          , PI4IOE5V64XX::Direction::OUT);
-    ioex.direction(IOEX_LED_IR             , PI4IOE5V64XX::Direction::OUT);
-    ioex.direction(IOEX_LED_MIKONA_CHARGING, PI4IOE5V64XX::Direction::OUT);
-    ioex.direction(IOEX_LED_MIKONA_FULL    , PI4IOE5V64XX::Direction::OUT);
-    ioex.direction(IOEX_LED_WIFI_ACTIVITY  , PI4IOE5V64XX::Direction::OUT);
-    ioex.direction(IOEX_LED_WIFI_CONNECTED , PI4IOE5V64XX::Direction::OUT);
-    ioex.direction(IOEX_LED_SWITCH         , PI4IOE5V64XX::Direction::OUT);
-
-    ioex.direction(IOEX_ID_BIT_2, PI4IOE5V64XX::Direction::IN);
-    ioex.direction(IOEX_ID_BIT_0, PI4IOE5V64XX::Direction::IN);
-    ioex.direction(IOEX_ID_BIT_3, PI4IOE5V64XX::Direction::IN);
-    ioex.direction(IOEX_ID_BIT_1, PI4IOE5V64XX::Direction::IN);
-
-    ioex.pullUpDownEnable(IOEX_DIP_3   );
-    ioex.pullUpDownEnable(IOEX_DIP_2   );
-    ioex.pullUpDownEnable(IOEX_DIP_1   );
-    ioex.pullUpDownEnable(IOEX_DIP_0   );
-    ioex.pullUpDownEnable(IOEX_BUTTON  );
-    ioex.pullUpDownEnable(IOEX_ID_BIT_2);
-    ioex.pullUpDownEnable(IOEX_ID_BIT_0);
-    ioex.pullUpDownEnable(IOEX_ID_BIT_3);
-    ioex.pullUpDownEnable(IOEX_ID_BIT_1);
-
-    ioex.pullUpDownSelection(IOEX_DIP_3   , PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_DIP_2   , PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_DIP_1   , PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_DIP_0   , PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_BUTTON  , PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_ID_BIT_2, PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_ID_BIT_0, PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_ID_BIT_3, PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-    ioex.pullUpDownSelection(IOEX_ID_BIT_1, PI4IOE5V64XX::PullUpDownSelection::PULL_UP);
-
-    ioex.write(IOEX_LED_FAULT          , PI4IOE5V64XX::Level::L);
-    ioex.write(IOEX_LED_IR             , PI4IOE5V64XX::Level::L);
-    ioex.write(IOEX_LED_MIKONA_CHARGING, PI4IOE5V64XX::Level::L);
-    ioex.write(IOEX_LED_MIKONA_FULL    , PI4IOE5V64XX::Level::L);
-    ioex.write(IOEX_LED_WIFI_ACTIVITY  , PI4IOE5V64XX::Level::L);
-    ioex.write(IOEX_LED_WIFI_CONNECTED , PI4IOE5V64XX::Level::L);
-    ioex.write(IOEX_LED_SWITCH         , PI4IOE5V64XX::Level::L);
-}
 
 void init_i2c0()
 {
@@ -197,16 +121,18 @@ int main()
 
     init_i2c0();
 
+    Ioex ioex{};
+    ioex.init(i2c0);
+
     test_mikona();
 
     test_pac1954();
 
-    init_ioex();
-
     while (true)
     {
-        PI4IOE5V64XX::Level::Level button = ioex.read(IOEX_BUTTON);
-        ioex.write(IOEX_LED_FAULT         , button);
+        ioex.setLedSwitch(ioex.getButton() ? Ioex::LedSwitch::Warning : Ioex::LedSwitch::Normal);
+        printf("id: %d\n", ioex.getId());
+        sleep_ms(100);
     }
 
     // init io

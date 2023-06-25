@@ -119,8 +119,8 @@ class PI4IOE5V64XX {
     uint8_t status {0x00};
 
 public:
-    void attach(uint8_t i2c_addr = BASE_I2C_ADDR) {
-        this->i2c = i2c0;
+    void attach(i2c_inst_t* i2c, uint8_t i2c_addr = BASE_I2C_ADDR) {
+        this->i2c = i2c;
         this->addr = i2c_addr;
     }
 
