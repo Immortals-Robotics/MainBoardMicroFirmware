@@ -10,6 +10,9 @@
 
 void Protocol::init()
 {
+    // Initialize mutex
+    critical_section_init(&m_criticalSection);
+
     // Initialize SPI
     spi_init(spi_default, kSpiFreq);
     spi_set_slave(spi_default, true);
@@ -27,9 +30,13 @@ void Protocol::init()
 
 bool Protocol::fill_tx_buffer(const Immortals_Protos_MicroStatus& message)
 {
-    pb_ostream_t stream = pb_ostream_from_buffer(m_tx_buffer, kBufferLen);
+    critical_section_enter_blocking(&m_criticalSection);
+    
+    pb_ostream_t stream = pb_ostream_from_buffer(m_tx_buffer[1-m_buffer_index], kBufferLen);
     bool status = pb_encode_ex(&stream, Immortals_Protos_MicroStatus_fields, &message, PB_ENCODE_DELIMITED);
     
+    critical_section_exit(&m_criticalSection);
+
     if (!status)
     {
         printf("Encoding failed: %s\n", PB_GET_ERROR(&stream));
@@ -41,12 +48,24 @@ bool Protocol::fill_tx_buffer(const Immortals_Protos_MicroStatus& message)
 
 bool Protocol::consume_rx_buffer(Immortals_Protos_MicroCommand* const message)
 {
-    pb_istream_t stream = pb_istream_from_buffer(m_rx_buffer, kBufferLen);
+    critical_section_enter_blocking(&m_criticalSection);
+
+    if (!rx_data_available())
+    {
+        critical_section_exit(&m_criticalSection);
+        return false;
+    }
+
+    pb_istream_t stream = pb_istream_from_buffer(m_rx_buffer[1-m_buffer_index], kBufferLen);
     bool status = pb_decode_ex(&stream, Immortals_Protos_MicroCommand_fields, message, PB_DECODE_DELIMITED);
-    
+    m_rx_data_available = false;
+
+    critical_section_exit(&m_criticalSection);
+
     if (!status)
     {
         printf("Decoding failed: %s\n", PB_GET_ERROR(&stream));
+        *message = Immortals_Protos_MicroCommand_init_zero;
         return false;
     }
 
@@ -56,8 +75,13 @@ bool Protocol::consume_rx_buffer(Immortals_Protos_MicroCommand* const message)
 bool Protocol::transceive_blocking()
 {
     // Write the output buffer to MISO, and at the same time read from MOSI.
-    const int length = spi_write_read_blocking(spi_default, m_tx_buffer, m_rx_buffer, kBufferLen);
+    const int length = spi_write_read_blocking(spi_default, m_tx_buffer[m_buffer_index], m_rx_buffer[m_buffer_index], kBufferLen);
     const bool success = length > 0;
+
+    critical_section_enter_blocking(&m_criticalSection);
+    m_buffer_index = 1 - m_buffer_index;
+    m_rx_data_available = success;
+    critical_section_exit(&m_criticalSection);
 
     if (success)
     {
