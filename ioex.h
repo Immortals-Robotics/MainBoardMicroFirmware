@@ -1,7 +1,7 @@
 #pragma once
 
 #include <hardware/i2c.h>
-#include "PI4IOE5V6416.h"
+#include "3rdparty/PI4IOE5V6416/PI4IOE5V6416.h"
 
 class Ioex
 {
