@@ -99,6 +99,7 @@ pico_add_extra_outputs(micro-firmware)
 
 target_link_libraries(micro-firmware 
   pico_stdlib
+  pico_multicore
   hardware_spi
   hardware_i2c
   hardware_pwm
