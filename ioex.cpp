@@ -83,10 +83,10 @@ bool Ioex::getDip(const uint8_t index)
 {
     switch(index)
     {
-        case 0: return m_ioex.read(IOEX_DIP_0) == PI4IOE5V64XX::Level::L;
-        case 1: return m_ioex.read(IOEX_DIP_1) == PI4IOE5V64XX::Level::L;
-        case 2: return m_ioex.read(IOEX_DIP_2) == PI4IOE5V64XX::Level::L;
-        case 3: return m_ioex.read(IOEX_DIP_3) == PI4IOE5V64XX::Level::L;
+        case 1: return m_ioex.read(IOEX_DIP_0) == PI4IOE5V64XX::Level::L;
+        case 2: return m_ioex.read(IOEX_DIP_1) == PI4IOE5V64XX::Level::L;
+        case 3: return m_ioex.read(IOEX_DIP_2) == PI4IOE5V64XX::Level::L;
+        case 4: return m_ioex.read(IOEX_DIP_3) == PI4IOE5V64XX::Level::L;
         default: return false;
     }
 }
