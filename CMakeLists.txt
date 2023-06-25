@@ -66,7 +66,12 @@ add_executable(micro-firmware
   ioex.cpp
   mikona.h
   mikona.cpp
+
+  protocol.h
+  protocol.cpp
+  
   main.cpp
+  
   ${PROTO_SRCS} ${PROTO_HDRS}
   ${NANOPB_DIR}/pb.h
   ${NANOPB_DIR}/pb_common.h
