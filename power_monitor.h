@@ -7,9 +7,21 @@
 class PowerMonitor
 {
 public:
+    enum class Rail
+    {
+        V5,
+        V24,
+    };
+
     PowerMonitor() = default;
 
     bool init(i2c_inst_t* i2c);
+
+    bool isConnected() const { return m_connected; }
+
+    float getVoltage(Rail rail);
+    float getCurrent(Rail rail);
+    float getPower(Rail rail);
 
 private:
     static constexpr uint16_t kI2cAddress = 0x13;

@@ -36,3 +36,18 @@ bool PowerMonitor::init(i2c_inst_t* i2c)
 
     return m_connected;
 }
+
+// TODO: implement these
+float PowerMonitor::getVoltage(const Rail rail)
+{
+    return 0.0f;
+}
+
+float PowerMonitor::getCurrent(const Rail rail)
+{
+    return 0.0f;
+}
+float PowerMonitor::getPower(const Rail rail)
+{
+    return 0.0f;
+}
