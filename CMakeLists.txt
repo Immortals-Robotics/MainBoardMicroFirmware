@@ -66,7 +66,8 @@ add_executable(micro-firmware
   ioex.cpp
   mikona.h
   mikona.cpp
-
+  power_monitor.h
+  power_monitor.cpp
   protocol.h
   protocol.cpp
   

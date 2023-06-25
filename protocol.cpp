@@ -10,6 +10,7 @@
 
 void Protocol::init()
 {
+    // Initialize SPI
     spi_init(spi_default, kSpiFreq);
     spi_set_slave(spi_default, true);
     spi_set_format(spi_default, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
@@ -17,6 +18,11 @@ void Protocol::init()
     gpio_set_function(MAIN_BOARD_SPI_TX_PIN, GPIO_FUNC_SPI);
     gpio_set_function(MAIN_BOARD_SPI_SCK_PIN, GPIO_FUNC_SPI);
     gpio_set_function(MAIN_BOARD_SPI_CSN_PIN, GPIO_FUNC_SPI);
+
+    // Initialize LED
+    gpio_init(MAIN_BOARD_LED_PIN);
+    gpio_set_dir(MAIN_BOARD_LED_PIN, GPIO_OUT);
+    setLed(false);
 }
 
 bool Protocol::fill_tx_buffer(const Immortals_Protos_MicroStatus& message)
@@ -51,5 +57,22 @@ bool Protocol::transceive_blocking()
 {
     // Write the output buffer to MISO, and at the same time read from MOSI.
     const int length = spi_write_read_blocking(spi_default, m_tx_buffer, m_rx_buffer, kBufferLen);
-    return length > 0;
+    const bool success = length > 0;
+
+    if (success)
+    {
+        toggleLed();
+    }
+
+    return success;
+}
+
+void Protocol::setLed(bool enable)
+{
+    gpio_put(MAIN_BOARD_LED_PIN, 1 - enable);
+}
+
+void Protocol::toggleLed()
+{
+    gpio_put(MAIN_BOARD_LED_PIN, 1 - gpio_get_out_level(MAIN_BOARD_LED_PIN));
 }

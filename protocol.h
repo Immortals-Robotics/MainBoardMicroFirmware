@@ -25,4 +25,7 @@ private:
 
     uint8_t m_tx_buffer[kBufferLen] = {};
     uint8_t m_rx_buffer[kBufferLen] = {};
+
+    void setLed(bool enable);
+    void toggleLed();
 };
