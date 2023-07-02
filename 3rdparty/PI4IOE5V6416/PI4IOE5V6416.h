@@ -119,9 +119,17 @@ class PI4IOE5V64XX {
     uint8_t status {0x00};
 
 public:
-    void attach(i2c_inst_t* i2c, uint8_t i2c_addr = BASE_I2C_ADDR) {
+    bool attach(i2c_inst_t* i2c, uint8_t i2c_addr = BASE_I2C_ADDR) {
         this->i2c = i2c;
         this->addr = i2c_addr;
+
+        uint8_t test = {};
+        const int8_t result = read_bytes(this->addr, Reg::OUTPUT_PORT_0, &test, 1);
+        return result == 1 && test > 0;
+    }
+
+    uint8_t getAddress() const {
+        return this->addr;
     }
 
     uint16_t read() {
@@ -228,7 +236,9 @@ private:
 
     int8_t read_bytes(const uint8_t dev, const uint8_t reg, uint8_t* data, const uint8_t size) {
         i2c_write_blocking(i2c, addr, &reg, 1, true);
-        return i2c_read_blocking(i2c, addr, data, size, false);
+        const int8_t result = i2c_read_blocking(i2c, addr, data, size, false);
+        sleep_ms(1);
+        return result;
     }
 
     bool write_bytes(const uint8_t dev, const uint8_t reg, const uint8_t* data, const uint8_t size) {
@@ -242,7 +252,7 @@ private:
 
         // Write data to register(s) over I2C
         int num_bytes_written = i2c_write_blocking(i2c, addr, msg, (size + 1), false);
-
+        sleep_ms(1);
         return num_bytes_written > 0;
     }
 };

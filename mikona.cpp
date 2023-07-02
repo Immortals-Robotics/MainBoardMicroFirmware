@@ -31,7 +31,7 @@ Mikona::Mikona(i2c_inst_t* const i2c)
 
 bool Mikona::init()
 {
-    uint8_t dev_id;
+    uint8_t dev_id = 0;
     if (read_bytes(Register::DEV_ID, &dev_id, 1) == 1 && dev_id == kDevId)
     {
         printf("Connected to mikona at address: 0x%x with device id: 0x%x\n", kAddress ,dev_id);
@@ -124,7 +124,9 @@ void Mikona::kickB(uint16_t pulseWidth)
 int8_t Mikona::read_bytes(const Register reg, uint8_t* const data, const uint8_t size) const
 {
         i2c_write_blocking(m_i2c, kAddress, (uint8_t*)(&reg), 1, true);
-        return i2c_read_blocking(m_i2c, kAddress, data, size, false);
+        const int8_t result = i2c_read_blocking(m_i2c, kAddress, data, size, false);
+        sleep_ms(1);
+        return result;
 }
 
 bool Mikona::write_bytes(const Register reg, const uint8_t* const data, const uint8_t size)
@@ -139,6 +141,6 @@ bool Mikona::write_bytes(const Register reg, const uint8_t* const data, const ui
 
     // Write data to register(s) over I2C
     int num_bytes_written = i2c_write_blocking(m_i2c, kAddress, msg, (size + 1), false);
-
+    sleep_ms(1);
     return num_bytes_written > 0;
 }

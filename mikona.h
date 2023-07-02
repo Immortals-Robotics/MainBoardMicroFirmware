@@ -42,7 +42,7 @@ private:
     static constexpr uint8_t kAddress = 0x2b;
     static constexpr uint8_t kDevId = 0x54;
 
-    static constexpr float kVoltageConversionFactor = 0.0050857544f;
+    static constexpr float kVoltageConversionFactor = 0.32311881f;
 
     int8_t read_bytes(Register reg, uint8_t* data, uint8_t size) const;
     bool write_bytes(Register reg, const uint8_t* data, uint8_t size);

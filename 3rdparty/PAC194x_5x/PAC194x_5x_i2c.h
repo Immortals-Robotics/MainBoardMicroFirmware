@@ -98,6 +98,8 @@ static inline void PAC194x5x_I2C_WriteReadTransferAdd (
     const int written_count = i2c_write_blocking(i2cParams.i2cHandle, i2cParams.i2cAddress, (uint8_t*)writeBuffer, writeSize, true);
     const int read_count = i2c_read_blocking(i2cParams.i2cHandle, i2cParams.i2cAddress, (uint8_t*)readBuffer, readSize, false);
     
+    sleep_ms(1);
+
     PAC194X5X_I2C_TRANSFER_EVENT event;
     if (written_count == PICO_ERROR_GENERIC || read_count == PICO_ERROR_GENERIC){
         event = PAC194X5X_I2C_TRANSFER_EVENT_ERROR;
@@ -118,6 +120,8 @@ static inline void PAC194x5x_I2C_WriteTransferAdd(
 
     const int written_count = i2c_write_blocking(i2cParams.i2cHandle, i2cParams.i2cAddress, (uint8_t*)buffer, size, false);
     
+    sleep_ms(1);
+
     PAC194X5X_I2C_TRANSFER_EVENT event;
     if (written_count == PICO_ERROR_GENERIC){
         event = PAC194X5X_I2C_TRANSFER_EVENT_ERROR;

@@ -1,9 +1,12 @@
 #include "ioex.h"
 
-#define IOEX_DIP_3 PI4IOE5V64XX::Port::P00
-#define IOEX_DIP_2 PI4IOE5V64XX::Port::P01
-#define IOEX_DIP_1 PI4IOE5V64XX::Port::P02
-#define IOEX_DIP_0 PI4IOE5V64XX::Port::P03
+#include <stdio.h>
+#include <pico/stdlib.h>
+
+#define IOEX_DIP_0 PI4IOE5V64XX::Port::P00
+#define IOEX_DIP_1 PI4IOE5V64XX::Port::P01
+#define IOEX_DIP_2 PI4IOE5V64XX::Port::P02
+#define IOEX_DIP_3 PI4IOE5V64XX::Port::P03
 #define IOEX_BUTTON PI4IOE5V64XX::Port::P04
 
 #define IOEX_LED_IR              PI4IOE5V64XX::Port::P05
@@ -27,7 +30,15 @@ Ioex::Ioex(i2c_inst_t* const i2c)
 void Ioex::init()
 {
     m_ioex = PI4IOE5V6416();
-    m_ioex.attach(m_i2c);
+
+    if (m_ioex.attach(m_i2c))
+    {
+        printf("Connected to IOEX at address: 0x%x\n", m_ioex.getAddress());
+    }
+    else
+    {
+        printf("Failed to connect to IOEX at address: 0x%x\n", m_ioex.getAddress());
+    }
 
     m_ioex.polarity(PI4IOE5V64XX::Polarity::ORIGINAL_ALL);
 
