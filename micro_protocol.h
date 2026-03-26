@@ -45,14 +45,16 @@ struct MicroStatus
 
     float power_5v_voltage;
     float power_5v_current;
-    float power_5v_power;
 
     float power_24v_voltage;
     float power_24v_current;
-    float power_24v_power;
+
+    float power_elapsed;
+    float power_5v_energy;
+    float power_24v_energy;
 };
 
 #pragma pack(pop)
 
 static_assert(sizeof(MicroCommand) == 9, "Unexpected MicroCommand size");
-static_assert(sizeof(MicroStatus) == 33, "Unexpected MicroStatus size");
+static_assert(sizeof(MicroStatus) == 37, "Unexpected MicroStatus size");
