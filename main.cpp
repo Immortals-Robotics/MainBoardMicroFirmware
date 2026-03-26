@@ -4,6 +4,7 @@
 
 #include <pico/stdlib.h>
 #include <pico/multicore.h>
+#include <hardware/adc.h>
 #include "buzzer.h"
 
 #include "ball-detector.h"
@@ -157,6 +158,8 @@ int main()
     gpio_set_function(MAIN_BOARD_I2C_1_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(MAIN_BOARD_I2C_1_SCL_PIN, GPIO_FUNC_I2C);
 
+    adc_init();
+
     g_context.ioex = std::make_unique<Ioex>(i2c0);
     g_context.ioex->init();
 
@@ -175,7 +178,7 @@ int main()
     g_context.protocol = std::make_unique<Protocol>();
     g_context.protocol->init();
 
-    g_context.buzzer->play(Buzzer::Sequence::BootJingle);
+    g_context.buzzer->play(Buzzer::Sequence::MarioCoin);
 
     multicore_launch_core1(core1_entry);
 
