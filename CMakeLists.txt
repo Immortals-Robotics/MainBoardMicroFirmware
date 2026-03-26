@@ -35,14 +35,13 @@ add_executable(micro-firmware
 
   ${PAC194X_5X_DIR}/PAC194x_5x.c
   ${PAC194X_5X_DIR}/PAC194x_5x.h
-  ${PAC194X_5X_DIR}/PAC194x_5x_definitions.h
-  ${PAC194X_5X_DIR}/PAC194x_5x_i2c.h
-  ${PAC194X_5X_DIR}/PAC194x_5x_mutex.h
   ${PI4IOE5V6416_DIR}/PI4IOE5V6416.h
 )
 
 pico_enable_stdio_usb(micro-firmware 0)
 pico_enable_stdio_uart(micro-firmware 1)
+
+
 
 target_link_libraries(micro-firmware
   pico_stdlib

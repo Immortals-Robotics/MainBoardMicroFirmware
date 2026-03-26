@@ -3,35 +3,10 @@
 #include <stdio.h>
 #include <pico/stdlib.h>
 
-// PAC1954 constants (unipolar, high-side configuration)
-static constexpr float kVbusFSR_V      = 32.0f;    // 32V full-scale for VBUS
-static constexpr float kVsenseFSR_mV   = 100.0f;   // 100mV full-scale for VSENSE
-
 // rsense values in micro-Ohms, indexed by channel (0-based)
+// NOTE: Verify against actual shunt resistor values on the board.
+// 1000 uOhm = 1 mOhm, 2000 uOhm = 2 mOhm.
 static constexpr uint32_t kRsense_uOhm[2] = { 1000, 2000 };
-
-static float voltageFromReg(uint16_t reg)
-{
-    return reg * kVbusFSR_V / 65536.0f;
-}
-
-static float currentFromReg(uint16_t reg, uint32_t rsense_uOhm)
-{
-    // Vsense (mV) = reg * 100mV / 65536
-    // I (A)       = Vsense (V) / Rsense (Ω) = Vsense_mV * 1e-3 / (rsense_uOhm * 1e-6)
-    //             = Vsense_mV * 1e3 / rsense_uOhm
-    const float vsense_mV = reg * kVsenseFSR_mV / 65536.0f;
-    return vsense_mV * 1000.0f / rsense_uOhm;
-}
-
-static float powerFromReg(uint32_t reg, uint32_t rsense_uOhm)
-{
-    // VPOWER register is 30-bit (stored left-aligned in 32 bits)
-    // P (W) = (reg >> 2) / 2^30 * VbusFSR_V * VsenseFSR_V / Rsense_Ohm
-    //       = (reg >> 2) * 32 * 0.1 * 1e6 / rsense_uOhm / 2^30
-    const float reg30 = static_cast<float>(reg >> 2);
-    return reg30 * 3.2e6f / rsense_uOhm / 1073741824.0f;
-}
 
 PowerMonitor::PowerMonitor(i2c_inst_t* const i2c)
     : m_i2c(i2c)
@@ -50,18 +25,14 @@ static uint8_t channelForRail(PowerMonitor::Rail rail)
 
 bool PowerMonitor::init()
 {
-    const PAC194X5X_DEVICE_INIT pacInit =
-    {
-        .i2cAddress = kI2cAddress,
-        .syncMode = true,
-        .i2cHandle = m_i2c,
-        // NOTE: rsense is in micro-Ohms. Verify against actual shunt resistor values on the board.
-        // 1000 uOhm = 1 mOhm, 2000 uOhm = 2 mOhm.
-        .rsense = { kRsense_uOhm[0], kRsense_uOhm[1], 0, 0 },
-        .VrailToVbusRatio = { 1.0f, 1.0f, 1.0f, 1.0f },
-    };
+    const uint8_t busID = (m_i2c == i2c0) ? 0 : 1;
 
-    const uint16_t init_result = PAC194x5x_Device_Initialize(&m_pacDevice, pacInit);
+    const PAC194X5X_i2cParams i2cParams = { kI2cAddress, busID };
+
+    uint32_t rsense[PAC194X5X_MAX_CH_COUNT] = { kRsense_uOhm[0], kRsense_uOhm[1], 0, 0 };
+    float VrailToVbusRatio[PAC194X5X_MAX_CH_COUNT] = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+    const uint16_t init_result = PAC194x5x_Device_Initialize(i2cParams, &m_pacDevice, VrailToVbusRatio, rsense);
 
     sleep_ms(1);
 
@@ -104,15 +75,11 @@ bool PowerMonitor::init()
         for (uint8_t ch = 1; ch <= 2; ch++)
         {
             const char* name = (ch == 1) ? "V24" : "V5";
-            uint16_t vbus_avg = 0, vsense_avg = 0;
-            uint32_t vpower_reg = 0;
-            PAC194x5x_GetVBUSn_AVG_reg(&m_pacDevice, ch, &vbus_avg);
-            PAC194x5x_GetVSENSEn_AVG_reg(&m_pacDevice, ch, &vsense_avg);
-            PAC194x5x_GetVPOWERn_reg(&m_pacDevice, ch, &vpower_reg);
-            const float V = voltageFromReg(vbus_avg);
-            const float I = currentFromReg(vsense_avg, kRsense_uOhm[ch - 1]);
-            const float P = powerFromReg(vpower_reg, kRsense_uOhm[ch - 1]);
-            printf("  [%s] V=%.3fV  I=%.4fA  P=%.3fW\n", name, V, I, P);
+            float V_mV = 0.0f, I_mA = 0.0f, P_mW = 0.0f;
+            PAC194x5x_GetVBUSn_AVG_real(&m_pacDevice, ch, &V_mV);
+            PAC194x5x_GetISENSEn_AVG_real(&m_pacDevice, ch, &I_mA);
+            PAC194x5x_GetVPOWERn_real(&m_pacDevice, ch, &P_mW);
+            printf("  [%s] V=%.3fV  I=%.4fA  P=%.3fW\n", name, V_mV / 1000.0f, I_mA / 1000.0f, P_mW / 1000.0f);
         }
         printf("---\n");
     }
@@ -125,9 +92,9 @@ float PowerMonitor::getVoltage(const Rail rail)
     if (!m_connected) return 0.0f;
     PAC194x5x_RefreshV(&m_pacDevice);
     sleep_ms(1);
-    uint16_t reg = 0;
-    PAC194x5x_GetVBUSn_reg(&m_pacDevice, channelForRail(rail), &reg);
-    return voltageFromReg(reg);
+    float mV = 0.0f;
+    PAC194x5x_GetVBUSn_AVG_real(&m_pacDevice, channelForRail(rail), &mV);
+    return mV / 1000.0f;
 }
 
 float PowerMonitor::getCurrent(const Rail rail)
@@ -135,10 +102,9 @@ float PowerMonitor::getCurrent(const Rail rail)
     if (!m_connected) return 0.0f;
     PAC194x5x_RefreshV(&m_pacDevice);
     sleep_ms(1);
-    uint16_t reg = 0;
-    const uint8_t ch = channelForRail(rail);
-    PAC194x5x_GetVSENSEn_reg(&m_pacDevice, ch, &reg);
-    return currentFromReg(reg, kRsense_uOhm[ch - 1]);
+    float mA = 0.0f;
+    PAC194x5x_GetISENSEn_AVG_real(&m_pacDevice, channelForRail(rail), &mA);
+    return mA / 1000.0f;
 }
 
 float PowerMonitor::getPower(const Rail rail)
@@ -146,8 +112,7 @@ float PowerMonitor::getPower(const Rail rail)
     if (!m_connected) return 0.0f;
     PAC194x5x_RefreshV(&m_pacDevice);
     sleep_ms(1);
-    const uint8_t ch = channelForRail(rail);
-    uint32_t reg = 0;
-    PAC194x5x_GetVPOWERn_reg(&m_pacDevice, ch, &reg);
-    return powerFromReg(reg, kRsense_uOhm[ch - 1]);
+    float mW = 0.0f;
+    PAC194x5x_GetVPOWERn_real(&m_pacDevice, channelForRail(rail), &mW);
+    return mW / 1000.0f;
 }

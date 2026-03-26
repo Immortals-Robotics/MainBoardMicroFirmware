@@ -1,5 +1,5 @@
 /*
-  © 2022 Microchip Technology Inc. and its subsidiaries
+  © 2021 Microchip Technology Inc. and its subsidiaries
 
   Subject to your compliance with these terms, you may use Microchip software
   and any derivatives exclusively with Microchip products. You're responsible
@@ -11,7 +11,7 @@
   BE LIABLE FOR ANY INDIRECT, SPECIAL, PUNITIVE, INCIDENTAL OR CONSEQUENTIAL LOSS,
   DAMAGE, COST OR EXPENSE OF ANY KIND WHATSOEVER RELATED TO THE SOFTWARE, HOWEVER
   CAUSED, EVEN IF MICROCHIP HAS BEEN ADVISED OF THE POSSIBILITY OR THE DAMAGES ARE
-  FORESEEABLE. TO THE FULLEST EXTENT ALLOWED BY LAW, MICROCHIP?S TOTAL LIABILITY
+  FORESEEABLE. TO THE FULLEST EXTENT ALLOWED BY LAW, MICROCHIP’S TOTAL LIABILITY
   ON ALL CLAIMS RELATED TO THE SOFTWARE WILL NOT EXCEED AMOUNT OF FEES, IF ANY,
   YOU PAID DIRECTLY TO MICROCHIP FOR THIS SOFTWARE.
 */
@@ -19,170 +19,467 @@
 #ifndef PAC194X5X_H
 #define PAC194X5X_H
 
+// Target platform selection — this copy of the library is for Raspberry Pi Pico only.
+#define PICO_PLATFORM
+
 #ifdef	__cplusplus
 extern "C" {
 #endif /* __cplusplus */
 
-// PAC194x5x generic library version
+// PAC194x/5x MCC library version
 #define PAC194X5X_LIBVER "1.0"
 
 /**
     Section: Included Files
 */
+
+#include <stdint.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <math.h>
 #include <string.h>
-#include "PAC194x_5x_definitions.h"
-#include "PAC194x_5x_i2c.h"
-#include "PAC194x_5x_mutex.h"
+    
+/*
+ * I2C driver support
+ */
+// Make sure that at least one I2C module is enabled (here or in project settings):
+//#define I2C_CLASSIC_ENABLED
+//#define I2C1_CLASSIC_ENABLED
+//#define I2C2_CLASSIC_ENABLED
+//#define I2C3_CLASSIC_ENABLED
+//#define I2C4_CLASSIC_ENABLED
+//#define I2C_FSERV_ENABLED
+
+#ifdef I2C_FSERV_ENABLED
+#include "mcc_generated_files/drivers/i2c_simple_master.h"
+#endif
+    
+#ifdef I2C_CLASSIC_ENABLED
+#include "mcc_generated_files/i2c.h"
+#define I2CPREF I2C
+#endif
+#ifdef I2C1_CLASSIC_ENABLED
+#include "mcc_generated_files/i2c1.h"
+#define I2CPREF I2C1
+#endif
+#ifdef I2C2_CLASSIC_ENABLED
+#include "mcc_generated_files/i2c2.h"
+#define I2CPREF I2C2
+#endif
+#ifdef I2C3_CLASSIC_ENABLED
+#include "mcc_generated_files/i2c3.h"
+#define I2CPREF I2C3
+#endif    
+#ifdef I2C4_CLASSIC_ENABLED
+#include "mcc_generated_files/i2c4.h"
+#define I2CPREF I2C4
+#endif
+
+#define CONCAT(X, Y)    X ## Y
+
+#if defined(I2C_CLASSIC_ENABLED) || defined(I2C1_CLASSIC_ENABLED) || defined(I2C2_CLASSIC_ENABLED) || defined(I2C3_CLASSIC_ENABLED) || defined(I2C4_CLASSIC_ENABLED)
+#define I2C_MESSAGE_STATUS(PREF)          CONCAT(PREF, _MESSAGE_STATUS)
+#define I2C_MESSAGE_COMPLETE(PREF)        CONCAT(PREF,_MESSAGE_COMPLETE)
+#define I2C_MESSAGE_FAIL(PREF)            CONCAT(PREF,_MESSAGE_FAIL)
+#define I2C_MESSAGE_PENDING(PREF)         CONCAT(PREF,_MESSAGE_PENDING)
+#define I2C_STUCK_START(PREF)             CONCAT(PREF,_STUCK_START)
+#define I2C_MESSAGE_ADDRESS_NO_ACK(PREF)  CONCAT(PREF,_MESSAGE_ADDRESS_NO_ACK)
+#define I2C_DATA_NO_ACK(PREF)             CONCAT(PREF,_DATA_NO_ACK)
+#define I2C_LOST_STATE(PREF)              CONCAT(PREF,_LOST_STATE)
+#elif !defined(I2C_FSERV_ENABLED) && !defined(PICO_PLATFORM)
+#error "No I2C bus has been enabled in the platform!"
+#endif
+
+#define PAC194X5X_MAX_CH_COUNT       4
 
 /*
- * PAC194x5x library error codes
- */    
-#define PAC194X5X_SUCCESS                               0
-#define PAC194X5X_BUSY                                  1
-#define PAC194X5X_MUTEX_INVALID                         2
-#define PAC194X5X_MUTEX_FAIL                            3
-#define PAC194X5X_INVALID_PARAMETER                     4
-#define PAC194X5X_I2C_INVALID_PARAM                     5
-#define PAC194X5X_INVALID_DEVICE                        6
-#define PAC194X5X_ALREADY_CACHED                        7
-#define PAC194X5X_INVALID_SHUNT_VALUE                   8
-#define PAC194X5X_INVALID_SAMPLE_MODE                   9
-#define PAC194X5X_SINGLE_SHOT_MODE_CONFIGURED           10
-#define PAC194X5X_VACC_POWER_MODE_NOT_CONFIGURED        11
-#define PAC194X5X_VACC_VSENSE_MODE_NOT_CONFIGURED       12
-#define PAC194X5X_INVALID_ACCUMULATION_MODE             13
-#define PAC194X5X_NO_SHUNT                              14
-#define PAC194X5X_REQUEST_FAIL                          100
+ * PAC194x/5x register address
+ */
+#define PAC194X5X_REFRESH_ADDR                0x00
+#define PAC194X5X_CTRL_ADDR                   0x01
+#define PAC194X5X_ACC_COUNT_ADDR              0x02
+#define PAC194X5X_VACC1_ADDR                  0x03
+#define PAC194X5X_VACC2_ADDR                  0x04
+#define PAC194X5X_VACC3_ADDR                  0x05
+#define PAC194X5X_VACC4_ADDR                  0x06
+#define PAC194X5X_VBUS1_ADDR                  0x07
+#define PAC194X5X_VBUS2_ADDR                  0x08
+#define PAC194X5X_VBUS3_ADDR                  0x09
+#define PAC194X5X_VBUS4_ADDR                  0x0A
+#define PAC194X5X_VSENSE1_ADDR                0x0B
+#define PAC194X5X_VSENSE2_ADDR                0x0C
+#define PAC194X5X_VSENSE3_ADDR                0x0D
+#define PAC194X5X_VSENSE4_ADDR                0x0E
+#define PAC194X5X_VBUS1_AVG_ADDR              0x0F
+#define PAC194X5X_VBUS2_AVG_ADDR              0x10
+#define PAC194X5X_VBUS3_AVG_ADDR              0x11
+#define PAC194X5X_VBUS4_AVG_ADDR              0x12
+#define PAC194X5X_VSENSE1_AVG_ADDR            0x13
+#define PAC194X5X_VSENSE2_AVG_ADDR            0x14
+#define PAC194X5X_VSENSE3_AVG_ADDR            0x15
+#define PAC194X5X_VSENSE4_AVG_ADDR            0x16
+#define PAC194X5X_VPOWER1_ADDR                0x17
+#define PAC194X5X_VPOWER2_ADDR                0x18
+#define PAC194X5X_VPOWER3_ADDR                0x19
+#define PAC194X5X_VPOWER4_ADDR                0x1A
+#define PAC194X5X_SMBUS_SETTINGS_ADDR         0x1C
+#define PAC194X5X_NEG_PWR_FSR_ADDR            0x1D
+#define PAC194X5X_REFRESH_G_ADDR              0x1E
+#define PAC194X5X_REFRESH_V_ADDR              0x1F
+#define PAC194X5X_SLOW_ADDR                   0x20
+#define PAC194X5X_CTRL_ACT_ADDR               0x21
+#define PAC194X5X_NEG_PWR_FSR_ACT_ADDR        0x22
+#define PAC194X5X_CTRL_LAT_ADDR               0x23
+#define PAC194X5X_NEG_PWR_FSR_LAT_ADDR        0x24
+#define PAC194X5X_ACCUM_CONFIG_ADDR           0x25
+#define PAC194X5X_ALERT_STATUS_ADDR           0x26
+#define PAC194X5X_SLOW_ALERT1_ADDR            0x27
+#define PAC194X5X_GPIO_ALERT2_ADDR            0x28
+#define PAC194X5X_ACC_FULLNESS_LIMITS_ADDR    0x29
+#define PAC194X5X_OC_LIMIT1_ADDR              0x30
+#define PAC194X5X_OC_LIMIT2_ADDR              0x31
+#define PAC194X5X_OC_LIMIT3_ADDR              0x32
+#define PAC194X5X_OC_LIMIT4_ADDR              0x33
+#define PAC194X5X_UC_LIMIT1_ADDR              0x34
+#define PAC194X5X_UC_LIMIT2_ADDR              0x35
+#define PAC194X5X_UC_LIMIT3_ADDR              0x36
+#define PAC194X5X_UC_LIMIT4_ADDR              0x37
+#define PAC194X5X_OP_LIMIT1_ADDR              0x38
+#define PAC194X5X_OP_LIMIT2_ADDR              0x39
+#define PAC194X5X_OP_LIMIT3_ADDR              0x3A
+#define PAC194X5X_OP_LIMIT4_ADDR              0x3B
+#define PAC194X5X_OV_LIMIT1_ADDR              0x3C
+#define PAC194X5X_OV_LIMIT2_ADDR              0x3D
+#define PAC194X5X_OV_LIMIT3_ADDR              0x3E
+#define PAC194X5X_OV_LIMIT4_ADDR              0x3F
+#define PAC194X5X_UV_LIMIT1_ADDR              0x40
+#define PAC194X5X_UV_LIMIT2_ADDR              0x41
+#define PAC194X5X_UV_LIMIT3_ADDR              0x42
+#define PAC194X5X_UV_LIMIT4_ADDR              0x43
+#define PAC194X5X_OC_LIMIT_N_ADDR             0x44
+#define PAC194X5X_UC_LIMIT_N_ADDR             0x45
+#define PAC194X5X_OP_LIMIT_N_ADDR             0x46
+#define PAC194X5X_OV_LIMIT_N_ADDR             0x47
+#define PAC194X5X_UV_LIMIT_N_ADDR             0x48    
+#define PAC194X5X_ALERT_ENABLE_ADDR           0x49
+#define PAC194X5X_ACCUM_CONFIG_ACT_ADDR       0x4A
+#define PAC194X5X_ACCUM_CONFIG_LAT_ADDR       0x4B
+
+#define PAC194X5X_PRODUCT_ID_ADDR             0xFD
+#define PAC194X5X_MANUFACTURER_ID_ADDR        0xFE
+#define PAC194X5X_REVISION_ID_ADDR            0xFF
+
+
+/*
+ * DEVICE REGISTER SIZES (bytes)
+ */
+#define PAC194X5X_ACC_COUNT_SZ       4
+#define PAC194X5X_VACCN_SZ           7
+#define PAC194X5X_VPOWERN_SZ         4
+#define PAC194X5X_OPLIMIT_SZ         3
+#define PAC194X5X_OTHERLIMIT_SZ      2
+#define PAC194X5X_IDREG_SZ           1
+#define PAC194X5X_CTRL_SZ            2
+#define PAC194X5X_VBUS_VSENSE_SZ     2
+#define PAC194X5X_SMBUS_SZ           1
+#define PAC194X5X_NEGPWRFSR_SZ       2
+#define PAC194X5X_SLOW_SZ            1
+#define PAC194X5X_ACCUMCONFIG_SZ     1
+#define PAC194X5X_ALERT_SZ           3
+#define PAC194X5X_OTHERLIMIT_N_SZ    1
+
+/*
+ * DEVICE REGISTER WIDTH (bits)
+ */
+#define PAC194X5X_VPOWERN_WIDTH      30
+#define PAC194X5X_VBUSN_WIDTH        16
+#define PAC194X5X_VSENSEN_WIDTH      16
+#define PAC194X5X_VLIMIT_WIDTH       16
+#define PAC194X5X_PLIMIT_WIDTH       24
+
+
+/*
+ * PAC194x/5x library error codes
+ */
+#define PAC194X5X_I2C_ERRCLASS                     0x1000
+#define PAC194X5X_SUCCESS                          0x00
+#define PAC194X5X_INVALID_I2C_BUSID                0x01
+#define PAC194X5X_INVALID_INPUT_VALUE              0x02
+#define PAC194X5X_INVALID_DEVICE                   0x03
+#define PAC194X5X_INVALID_SAMPLE_MODE              0x04
+#define PAC194X5X_SINGLE_SHOT_MODE_CONFIGURED      0x05
+#define PAC194X5X_SINGLE_SHOT_MODE_NOT_CONFIGURED  0x06
+#define PAC194X5X_VACC_POWER_MODE_NOT_CONFIGURED   0x07
+#define PAC194X5X_VACC_VSENSE_MODE_NOT_CONFIGURED  0x08
+#define PAC194X5X_INVALID_ACCUMULATION_MODE        0x09
+#define PAC194X5X_NO_SHUNT                         0x10
+
+
+/*
+ * PAC194x/5x library constants
+ */
+#define BIT_0       0x01
+#define BIT_1       0x02
+#define BIT_2       0x04
+#define BIT_3       0x08
+#define BIT_4       0X10
+#define BIT_5       0x20
+#define BIT_6       0x40
+#define BIT_7       0x80
+#define BIT_8       0x100
+#define BIT_9       0x200
+#define BIT_10      0x400
+#define BIT_11      0x800
+#define BIT_12      0x1000
+#define BIT_13      0x2000
+#define BIT_14      0x4000
+#define BIT_15      0x8000
+
+#define SMBUS_BYTECNT   1   //the extra byte for SMBUS block read protocol
+
+ /*
+  *  PAC194x/5x bit field structures
+  */
+
+typedef struct _PAC194X5X_i2cParams {
+    uint8_t i2cAddress;     // i2c client 7-bit address
+    uint8_t i2cBusID;       // parameter used only by "i2c classic lib":
+                            // 1 for "i2c1" or "i2c", 2 for "i2c2", 3 for "i2c3", 4 for "i2c4"                    
+} PAC194X5X_i2cParams, *PPAC194X5X_i2cParams;
+
+ typedef struct _PAC194X5X_deviceID {
+    uint8_t product;        // PRODUCT_ID register value
+    uint8_t manufacturer;   // MANUFACTURER_ID register value
+    uint8_t revision;       // REVISION_ID register value
+ } PAC194X5X_deviceID, *PPAC194X5X_deviceID;
+
+typedef struct _PAC194X5X_CTRL_REGISTER{
+    //PAC register MSB mapped into struct LSB
+    uint8_t SLOW_ALERT1 : 2;
+    uint8_t GPIO_ALERT2 : 2;
+    uint8_t SAMPLE_MODE : 4;
+    //PAC register LSB mapped into struct MSB
+    uint8_t             : 4;
+    uint8_t CH4_OFF     : 1;
+    uint8_t CH3_OFF     : 1;
+    uint8_t CH2_OFF     : 1;
+    uint8_t CH1_OFF     : 1;
+} PAC194X5X_CTRL_REGISTER, *PPAC194X5X_CTRL_REGISTER; 
+
+typedef struct _PAC194X5X_SMBUS_SETTINGS_REGISTER {
+    uint8_t I2C_HISPEED : 1;
+    uint8_t NO_SKIP     : 1;
+    uint8_t BYTE_COUNT  : 1;
+    uint8_t TIMEOUT     : 1;
+    uint8_t POR         : 1;
+    uint8_t ANY_ALERT   : 1;
+    uint8_t GPIO_DATA1  : 1;
+    uint8_t GPIO_DATA2  : 1;
+} PAC194X5X_SMBUS_SETTINGS_REGISTER, *PPAC194X5X_SMBUS_SETTINGS_REGISTER;
+
+typedef struct _PAC194X5X_NEG_PWR_FSR_REGISTER {
+// PAC register MSB mapped into struct LSB    
+    unsigned char CFG_VS4 : 2;
+    unsigned char CFG_VS3 : 2;
+    unsigned char CFG_VS2 : 2;
+    unsigned char CFG_VS1 : 2;
+// PAC register LSB mapped into struct MSB    
+    unsigned char CFG_VB4 : 2;
+    unsigned char CFG_VB3 : 2;
+    unsigned char CFG_VB2 : 2;
+    unsigned char CFG_VB1 : 2;
+} PAC194X5X_NEG_PWR_FSR_REGISTER, *PPAC194X5X_NEG_PWR_FSR_REGISTER;
+
+typedef struct _PAC194X5X_SLOW_REGISTER {
+    unsigned char               : 1;
+    unsigned char RefreshVFall  : 1;
+    unsigned char RefreshFall   : 1;
+    unsigned char RefreshVRise  : 1;
+    unsigned char RefreshRise   : 1;
+    unsigned char SlowHighLow   : 1;
+    unsigned char SlowLowHigh   : 1;
+    unsigned char Slow          : 1;
+} PAC194X5X_SLOW_REGISTER, *PPAC194X5X_SLOW_REGISTER;
+
+typedef struct _PAC194X5X_ACCUM_CONFIG_REGISTER {
+    unsigned char ACC4_CONFIG : 2;
+    unsigned char ACC3_CONFIG : 2;
+    unsigned char ACC2_CONFIG : 2;
+    unsigned char ACC1_CONFIG : 2;
+} PAC194X5X_ACCUM_CONFIG_REGISTER, *PPAC194X5X_ACCUM_CONFIG_REGISTER;
+
+typedef struct _PAC194X5X_ALERT_STATUS_REGISTER {
+// PAC register MSB mapped into struct LSB    
+    unsigned char CH4_UC    : 1;
+    unsigned char CH3_UC    : 1;
+    unsigned char CH2_UC    : 1;
+    unsigned char CH1_UC    : 1;
+    unsigned char CH4_OC    : 1;
+    unsigned char CH3_OC    : 1;
+    unsigned char CH2_OC    : 1;
+    unsigned char CH1_OC    : 1;
+// PAC register middle byte mapped into struct middle byte
+    unsigned char CH4_UV    : 1;
+    unsigned char CH3_UV    : 1;
+    unsigned char CH2_UV    : 1;
+    unsigned char CH1_UV    : 1;
+    unsigned char CH4_OV    : 1;
+    unsigned char CH3_OV    : 1;
+    unsigned char CH2_OV    : 1;
+    unsigned char CH1_OV    : 1;
+// PAC register LSB mapped into struct MSB    
+    unsigned char           : 2;
+    unsigned char ACC_COUNT : 1;
+    unsigned char ACC_OVF   : 1;
+    unsigned char CH4_OP    : 1;
+    unsigned char CH3_OP    : 1;
+    unsigned char CH2_OP    : 1;
+    unsigned char CH1_OP    : 1;
+} PAC194X5X_ALERT_STATUS_REGISTER, *PPAC194X5X_ALERT_STATUS_REGISTER;
+
+
+typedef struct _PAC194X5X_ALERT_REGISTER {
+    // PAC register MSB mapped into struct LSB    
+    unsigned char CH4_UC    : 1;
+    unsigned char CH3_UC    : 1;
+    unsigned char CH2_UC    : 1;
+    unsigned char CH1_UC    : 1;
+    unsigned char CH4_OC    : 1;
+    unsigned char CH3_OC    : 1;
+    unsigned char CH2_OC    : 1;
+    unsigned char CH1_OC    : 1;
+    // PAC register middle byte mapped into struct middle byte
+    unsigned char CH4_UV    : 1;
+    unsigned char CH3_UV    : 1;
+    unsigned char CH2_UV    : 1;
+    unsigned char CH1_UV    : 1;
+    unsigned char CH4_OV    : 1;
+    unsigned char CH3_OV    : 1;
+    unsigned char CH2_OV    : 1;
+    unsigned char CH1_OV    : 1;
+    // PAC register LSB mapped into struct MSB    
+    unsigned char           : 1;
+    unsigned char ALERT_CCx : 1;
+    unsigned char ACC_COUNT : 1;
+    unsigned char ACC_OVF   : 1;
+    unsigned char CH4_OP    : 1;
+    unsigned char CH3_OP    : 1;
+    unsigned char CH2_OP    : 1;
+    unsigned char CH1_OP    : 1;
+} PAC194X5X_ALERT_REGISTER, *PPAC194X5X_ALERT_REGISTER;
+
+
+typedef struct _PAC194X5X_ACCUM_LIMITS_REGISTER {
+    // PAC register MSB mapped into struct LSB    
+    unsigned char ACC_CH4   : 2;
+    unsigned char ACC_CH3   : 2;
+    unsigned char ACC_CH2   : 2;
+    unsigned char ACC_CH1   : 2;
+    // PAC register LSB mapped into struct MSB    
+    unsigned char           : 6;
+    unsigned char ACC_COUNT : 2;
+} PAC194X5X_ACCUM_LIMITS_REGISTER, *PPAC194X5X_ACCUM_LIMITS_REGISTER;
+
+
+typedef struct _PAC194X5X_LIMIT_NSAMPLES_REGISTER {
+    unsigned char Nsamples_CH4 : 2;
+    unsigned char Nsamples_CH3 : 2;
+    unsigned char Nsamples_CH2 : 2;
+    unsigned char Nsamples_CH1 : 2;
+} PAC194X5X_LIMIT_NSAMPLES_REGISTER, *PPAC194X5X_LIMIT_NSAMPLES_REGISTER;
+
+/* !!! WARNING !!!
+ * The device context structure is initialized by PAC194x5x_Device_Initialize() function call
+ */ 
+typedef struct _PAC194X5X_DEVICE_CONTEXT{
+    uint8_t i2cBusID;
+    uint8_t i2cAddress;
+    uint8_t HwChannels;
+    uint8_t LowSide;
+    uint16_t VbusFSR;
+    uint16_t VsenseFSR;
+    uint16_t VPowerFSR;
+    
+    // Voltage divider ratios (ratio = Vrail / Vbus) used to determine the rail voltage (Vrail)
+    // from the measured Vbus with the PAC194x/5x-2 devices ("low-side" connected devices). 
+    // The voltage divider ratios are ignored by the PAC194x/5x-1 "high-side" devices.  
+    float VrailToVbusRatio[PAC194X5X_MAX_CH_COUNT];
+    
+    // Sense resistor values, expressed in micro-Ohm units.
+    uint32_t rsense[PAC194X5X_MAX_CH_COUNT];
+    
+    // cached BYTE_COUNT flag from the SMBUS_SETTINGS register,
+    // kept in sync by PAC194x5x_SetSMBusSettings_reg() and PAC194x5x_GetSMBusSettings_reg()
+    bool ENABLE_BYTE_COUNT_FLAG;
+
+    //cached channel scale values
+    //"scale" and "sign" depends on negPwrFsr configuration
+    //the cache must be marked "Invalid" by any "Refresh/V/G" or by "PAC194x5x_SetNegPwrFsr_reg()" 
+    uint16_t VbusScale[PAC194X5X_MAX_CH_COUNT];         //VbusScale;
+    uint16_t VsenseScale[PAC194X5X_MAX_CH_COUNT];       //VsenseScale;
+    uint16_t VPowerScale[PAC194X5X_MAX_CH_COUNT];       //VPowerScale;
+    uint8_t  IsSignedPower[PAC194X5X_MAX_CH_COUNT];     //IsSignedPower;
+    uint8_t  IsSignedVbus[PAC194X5X_MAX_CH_COUNT];      //Vbus is signed
+    uint8_t  IsSignedVsense[PAC194X5X_MAX_CH_COUNT];    //Vsense is signed
+    bool ScaleValues_cached[PAC194X5X_MAX_CH_COUNT];    //the computed scale values are valid or not
+
+    //cached device registers   
+    PAC194X5X_deviceID deviceID;                        //updated by the PAC194x5x_GetDeviceID() function call
+    PAC194X5X_CTRL_REGISTER ctrl_LAT;                   //updated by the PAC194x5x_GetCtrl_reg() function call
+    PAC194X5X_NEG_PWR_FSR_REGISTER negPwrFsr_LAT;       //updated by the PAC194x5x_GetNegPwrFsr_reg() function call
+    PAC194X5X_ACCUM_CONFIG_REGISTER accumConfig_LAT;    //updated by the PAC194x5x_GetAccumConfig_reg() function call
+    
+    //cached validity flags
+    bool deviceID_cached;
+    bool ctrl_LAT_cached;
+    bool negPwrFsr_LAT_cached;
+    bool accumConfig_LAT_cached;
+} PAC194X5X_DEVICE_CONTEXT, *PPAC194X5X_DEVICE_CONTEXT;
+
 
 /* 
- * PAC194x5x library interface
+ * PAC194x/5x library interface
  */
 
-
 /**
     @Summary
-        Set the user call-back function.
-    @Description
-        This routine registers the user function that PAC194x5x library will call back 
-        every time the library generates a processing event of the PAC194X5X_EVENT type.
-        For instance, the user call-back function can be useful to flag the completion of the 
-        library service request or the error occurrence. 
-    @Preconditions
-        None
-    @Param
-        pdevice - PAC194x5x device context data.
-    @Param
-        userCallback - The pointer to the call-back function. 
-    @Param
-        userContext - Pointer to a variable of user defined datatype that the called-back function will
-                      receive as parameter.
-    @Returns
-        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
-    @Example
-        <code>
-            errorCode = PAC194x5x_SetUserCallback(pPACdevice, appCallback, (uintptr_t)&user_data);
-        </code>
-*/
-int16_t PAC194x5x_SetUserCallback(
-    const PAC194X5X_PDEVICE_CONTEXT pdevice,
-    const PAC194X5X_EVENT_HANDLER userCallback,
-    const uintptr_t userContext
-);
-
-
-/**
-    @Summary
-        Library processing timeout function.
-    @Description
-        This routine can be called from user application or can be registered as a timer callback  
-        function in order to drop the pending library request and reset the processing state to "Idle". 
-    @Preconditions
-        None
-    @Param
-        deviceContext - pointer to PAC194x5x device context data.
-    @Returns
-        Nothing.
-    @Example
-        <code>
-            PAC194x5x_Timeout((uintptr_t)pPACdevice);
-        </code>
-*/
-void PAC194x5x_Timeout(
-    const uintptr_t deviceContext
-);
-
-
-/**
-    @Summary
-        Provides the latest library event.
-    @Description
-        Provides the latest library event as recorded in the device context.
-    @Preconditions
-        None
-    @Param
-        pdevice - PAC194x5x device context data.
-    @Param
-        pevent - pointer to event variable.
-     @Returns
-        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
-    @Example
-        <code>
-            errorCode = PAC194x5x_GetEventStatus(pPACdevice, &event);
-        </code>
-*/
-int16_t PAC194x5x_GetEventStatus(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PEVENT pevent);
-
-
-/**
-    @Summary
-        Initializes the PAC194x5x instance.
+        Initializes the PAC194x/5x instance.
     @Description
         This routine initializes the PAC194X5X_DEVICE_CONTEXT device context data and
-        the PAC194x5x device to the default configuration,
-        or to the configuration selected by the user in the MPLAB Harmony GUI.
+        the PAC194x/5x device to the default configuration,
+        or to the configuration selected by the user in the MPLAB MCC GUI.
         It also reads the device ID registers and caches their values in the device context data. 
         NOTE: 1ms delay must be allowed between the PAC194x5x_Device_Initialize() function call and
         the following function calls. 
     @Preconditions
-        The user must assure that I2C Driver initialization has been performed.
-        All deviceInit parameters must contain valid values. 
+        None
     @Param
-        pdevice - Reference to the memory storage of PAC194x5x device context data.
+        i2cParams - the i2c bus ID and the i2c client 7-bit address
     @Param
-        deviceInit - Structure that contains the i2c Address, sync mode, i2c handle, rsense.
+        pdevice - PAC194x/5x device context data.
+    @Param
+        VrailToVbusRatio - Array of voltage divider ratios (ratio = Vrail / Vbus),
+                           one value for each channel.
+                           This parameter is only used to determine the rail voltage (Vrail)
+                           from the measured Vbus with the PAC194x/5x-2 devices
+                           ("low-side" connected devices). 
+                           The parameter is ignored by the PAC194x/5x-1 "high-side" devices.  
+    @Param
+        prsense - Array of sense resistor values, expressed in micro-Ohm units,
+                  one value for each channel.
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_Device_Initialize(pPACdevice, deviceInit);
+            errorCode = PAC194x5x_Device_Initialize(i2cParams, PACdevice, VrailToVbusRatio, rsense);
         </code>
 */
-int16_t PAC194x5x_Device_Initialize(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_DEVICE_INIT deviceInit);
+uint16_t PAC194x5x_Device_Initialize(PAC194X5X_i2cParams i2cParams, PPAC194X5X_DEVICE_CONTEXT pdevice, float *VrailToVbusRatio, uint32_t *prsense);
 
 
 /**
     @Summary
-        Tests if the PAC194x5x instance was initialized.
-    @Description
-        Tests if the PAC194x5x instance was initialized.
-    @Preconditions
-        None
-    @Param
-        pdevice - PAC194x5x device context data.
-    @Returns
-        True if the PAC194x5x instance was initialized and false if it was not initialized.
-        False if pdevice is NULL.
-    @Example
-        <code>
-            errorCode = PAC194x5x_Device_IsInitialized(pPACdevice);
-        </code>
-*/
-bool PAC194x5x_Device_IsInitialized(PAC194X5X_PDEVICE_CONTEXT pdevice);
-
-
-/**
-    @Summary
-        Gets the identification values for the PAC194x5x.
+        Gets the identification values for the PAC194x/5x.
     @Description
         This method gets the content of the ID registers: 
         PRODUCT_ID, MANUFACTURER_ID and REVISION_ID.
@@ -190,22 +487,17 @@ bool PAC194x5x_Device_IsInitialized(PAC194X5X_PDEVICE_CONTEXT pdevice);
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Param
         pdeviceID - content of the ID registers
     @Return
-        The error code. 
-            - If the function returns PAC194X5X_ALREADY_CACHED, the device ID data
-              is already available and copied in the pdeviceID parameter.
-            - If the function returns PAC194X5X_SUCCESS, the data request has been 
-              successfully initiated in async mode or successfully completed in 
-              sync mode.
+        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetDeviceID(pPACdevice);
+            errorCode = PAC194x5x_GetDeviceID(PACdevice);
         <code>
 */
-int16_t PAC194x5x_GetDeviceID(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PdeviceID pdeviceID);
+uint16_t PAC194x5x_GetDeviceID(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_deviceID pdeviceID);
 
 
 /**
@@ -220,15 +512,15 @@ int16_t PAC194x5x_GetDeviceID(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_Pdevi
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_Refresh(pPACdevice);
+            errorCode = PAC194x5x_Refresh(PACdevice);
         <code>
 */
-int16_t PAC194x5x_Refresh(PAC194X5X_PDEVICE_CONTEXT pdevice);
+uint16_t PAC194x5x_Refresh(PPAC194X5X_DEVICE_CONTEXT pdevice);
 
 
 /**
@@ -236,7 +528,7 @@ int16_t PAC194x5x_Refresh(PAC194X5X_PDEVICE_CONTEXT pdevice);
         Executes a 'REFRESH_G' command.
     @Description
         This method executes the device 'REFRESH_G' command, using i2c 
-        General Call command. In this case, for all PAC194x5x devices connected at the
+        General Call command. In this case, for all PAC194x/5x devices connected at the
         same i2c bus, the accumulator registers (power products, sample count) and the 
         Vbus, Vsense measurements are latched into the devices readable registers,  
         the accumulators are reset and the configuration changes are applied. 
@@ -244,15 +536,15 @@ int16_t PAC194x5x_Refresh(PAC194X5X_PDEVICE_CONTEXT pdevice);
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_RefreshG(pPACdevice);
+            errorCode = PAC194x5x_RefreshG(PACdevice);
         <code>
 */
-int16_t PAC194x5x_RefreshG(PAC194X5X_PDEVICE_CONTEXT pdevice);
+uint16_t PAC194x5x_RefreshG(PPAC194X5X_DEVICE_CONTEXT pdevice);
 
 
 /**
@@ -267,15 +559,15 @@ int16_t PAC194x5x_RefreshG(PAC194X5X_PDEVICE_CONTEXT pdevice);
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Returns
-        The error code. For execution success, the method returns PAC194x5x_SUCCESS value.
+        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_RefreshV(pPACdevice);
+            errorCode = PAC194x5x_RefreshV(PACdevice);
         <code>
 */
-int16_t PAC194x5x_RefreshV(PAC194X5X_PDEVICE_CONTEXT pdevice);
+uint16_t PAC194x5x_RefreshV(PPAC194X5X_DEVICE_CONTEXT pdevice);
 
 
 /**
@@ -288,26 +580,27 @@ int16_t PAC194x5x_RefreshV(PAC194X5X_PDEVICE_CONTEXT pdevice);
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Param
         reg_select - 1- CTRL, 2- CTRL_ACT, 3- CTRL_LAT
     @Param
         pCtrl_reg - The control register value:
-                        Bits 7-6:   Sample Rate
-                        Bit 5:      Sleep Mode
-                        Bit 4:      Single Shot Mode
-                        Bit 3:      Alert Pin
-                        Bit 2:      Alert CC
-                        Bit 1:      Overflow Alert
-                        Bit 0:      Overflow
+                        Bits 15-12:    Sample Mode
+                        Bits 11-10:    GPIO Alert 2
+                        Bits 9-8:      Slow Alert 1
+                        Bit 7:         CH1_OFF
+                        Bit 6:         CH2_OFF
+                        Bit 5:         CH3_OFF
+                        Bit 4:         CH4_OFF
+                        Bits 3-0:      Unimplemented
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetCtrl_reg(pPACdevice, 1, &reg_value);
+            errorCode = PAC194x5x_GetCtrl_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetCtrl_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t reg_select, PAC194X5X_PCTRL_REGISTER pCtrl_reg);
+uint16_t PAC194x5x_GetCtrl_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t reg_select, PPAC194X5X_CTRL_REGISTER pCtrl_reg);
 
 
 /**
@@ -319,57 +612,86 @@ int16_t PAC194x5x_GetCtrl_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t reg_sel
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Param
-        Ctrl_reg - the control register value to be set (8 bit value):
-                        Bits 7-6:   Sample Rate
-                        Bit 5:      Sleep Mode
-                        Bit 4:      Single Shot Mode
-                        Bit 3:      Alert Pin
-                        Bit 2:      Alert CC
-                        Bit 1:      Overflow Alert
-                        Bit 0:      Overflow
+        Ctrl_reg - the control register value to be set (16 bit value):
+                        Bits 15-12:    Sample Mode
+                        Bits 11-10:    GPIO Alert 2
+                        Bits 9-8:      Slow Alert 1
+                        Bit 7:         CH1_OFF
+                        Bit 6:         CH2_OFF
+                        Bit 5:         CH3_OFF
+                        Bit 4:         CH4_OFF
+                        Bits 3-0:      Unimplemented
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_SetCtrl_reg(pPACdevice, reg_value);
+            errorCode = PAC194x5x_SetCtrl_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetCtrl_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_CTRL_REGISTER Ctrl_reg);
+uint16_t PAC194x5x_SetCtrl_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_CTRL_REGISTER Ctrl_reg);
 
 
 /**
     @Summary
         Gets the current accumulator count.
     @Description
-        This method provides the count of power product samples that have been summed
+        This method gets the count for each time a power result has been summed 
         in the accumulator. 
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Param
         pregister_val - The accumulator count register value.
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetAccumulatorCount(pPACdevice, &reg_value);
+            errorCode = PAC194x5x_GetAccumulatorCount(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetAccumulatorCount(PAC194X5X_PDEVICE_CONTEXT pdevice, uint32_t* pregister_val);
+uint16_t PAC194x5x_GetAccumulatorCount(PPAC194X5X_DEVICE_CONTEXT pdevice, uint32_t* pregister_val);
 
 
+#ifdef __XC8__
 /**
     @Summary
-        Gets the current register accumulated Vpower.
+        Gets the current register accumulated Vpower, Vsense or Vbus.
     @Description
-        This method gets the register value of the accumulator sum of Vpower samples.
+        This method gets the register value of the accumulator sum of Vpower, Vsense or Vbus samples,
+        depending on Accum Config register settings.
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
+    @Param
+        channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
+    @Param
+        pregister_val - the user buffer that receives the accumulator register value.
+                        The buffer size must be 7 bytes.
+    @Returns
+        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
+    @Example
+        <code>
+            errorCode = PAC194x5x_GetVACCn_reg(PACdevice, 1, &reg_value);
+        <code>
+*/
+uint16_t PAC194x5x_GetVACCn_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint8_t* pregister_val);
+
+
+#else   // __XC16__ or __XC32__
+/**
+    @Summary
+        Gets the current register accumulated Vpower, Vsense or Vbus.
+    @Description
+        This method gets the register value of the accumulator sum of Vpower, Vsense or Vbus samples,
+        depending on Accum Config register settings.
+    @Preconditions
+        None
+    @Param
+        pdevice - PAC194x/5x device context data.
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -378,17 +700,18 @@ int16_t PAC194x5x_GetAccumulatorCount(PAC194X5X_PDEVICE_CONTEXT pdevice, uint32_
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVACCn_reg(pPACdevice, 1, &reg_value);
+            errorCode = PAC194x5x_GetVACCn_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetVACCn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint64_t* pregister_val);
+uint16_t PAC194x5x_GetVACCn_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint64_t* pregister_val);
+#endif
 
 
 /**
     @Summary
-        Computes the accumulated Vpower, Vsense or Vbus.
+        Gets the current real accumulated Vpower, Vsense or Vbus.
     @Description
-        This method provides tthe calculated real value of the accumulated sum of Vpower, Vsense or Vbus samples,
+        This method gets the calculated real value of the accumulated sum of Vpower, Vsense or Vbus samples,
         depending on Accum Config register settings.
     @Preconditions
         None
@@ -407,36 +730,38 @@ int16_t PAC194x5x_GetVACCn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channe
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVACCn(pPACdevice, 1, &value, &mode);
+            errorCode = PPAC194x5x_GetVACCn_real(PACdevice, 1, &value, &mode);
         <code>
 */
-int16_t PAC194x5x_GetVACCn(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue, uint8_t* pmode);
+uint16_t PAC194x5x_GetVACCn_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue, uint8_t* pmode);
 
 
 /**
     @Summary
         Gets the accumulated energy value.
     @Description
-        This method computes the energy value for the power product
-        samples accumulated in the VACCn register.
+        This method gets the calculated energy value that corresponds 
+        with the accumulated power.
         The value unit is milli-Watt-hour.
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
         pvalue - The energy value for selected channel.
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
+        If Single Shot or Single Shot 8x is configured, the function returns PAC194X5X_SINGLE_SHOT_MODE_CONFIGURED error.
+        If the accumulator is not configured in VPOWER mode, the function returns PAC194X5X_VACC_POWER_MODE_NOT_CONFIGURED error.
         
     @Example
         <code>
-            errorCode = PAC194x5x_GetEnergy_mWh(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetEnergy(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetEnergy_mWh(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetEnergy(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -449,7 +774,7 @@ int16_t PAC194x5x_GetEnergy_mWh(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -458,12 +783,13 @@ int16_t PAC194x5x_GetEnergy_mWh(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
         time - the accumulation time to provide the energy measurement
     @Returns
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
+        If the accumulator is not configured in VPOWER mode, the function returns PAC194X5X_VACC_POWER_MODE_NOT_CONFIGURED error.
     @Example
         <code>
-            errorCode = PAC194x5x_GetTimedEnergy_mWh(pPACdevice, 1, &value, time);
+            errorCode = PAC194x5x_GetTimedEnergy(PACdevice, 1, &value, time);
         <code>
 */
-int16_t PAC194x5x_GetTimedEnergy_mWh(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue, uint32_t time);
+uint16_t PAC194x5x_GetTimedEnergy(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue, uint32_t time);
 
 
 /**
@@ -487,10 +813,10 @@ int16_t PAC194x5x_GetTimedEnergy_mWh(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t 
         If the accumulator is not configured in VSENSE mode, the function returns PAC194X5X_VACC_VSENSE_MODE_NOT_CONFIGURED error.
     @Example
         <code>
-            errorCode = PAC194x5x_GetCoulomb_mAs(PACdevice, 1, &value);
+            errorCode = PAC194x5x_GetCoulomb(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetCoulomb_mAs(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetCoulomb(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -515,21 +841,21 @@ int16_t PAC194x5x_GetCoulomb_mAs(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
         If the accumulator is not configured in VSENSE mode, the function returns PAC194X5X_VACC_VSENSE_MODE_NOT_CONFIGURED error.
     @Example
         <code>
-            errorCode = PAC194x5x_GetTimedCoulomb_mAs(PACdevice, 1, &value, time);
+            errorCode = PAC194x5x_GetTimedCoulomb(PACdevice, 1, &value, time);
         <code>
 */
-int16_t PAC194x5x_GetTimedCoulomb_mAs(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue, uint32_t time);
+uint16_t PAC194x5x_GetTimedCoulomb(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue, uint32_t time);
 
 
 /**
     @Summary
         Gets the current Vbus register value.
     @Description
-        This method provides the register value of the latched bus voltage sample.
+        This method gets the most recent register value of a bus voltage sample.
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -538,21 +864,22 @@ int16_t PAC194x5x_GetTimedCoulomb_mAs(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVBUSn_reg(pPACdevice, 1, &reg_value);
+            errorCode = PAC194x5x_GetVBUSn_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetVBUSn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetVBUSn_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
     @Summary
         Gets the current real Vbus value.
     @Description
-        This method computes the value of the latched bus voltage sample, expressed in milli-Volts.
+        This method gets the most recent calculated real value of a bus voltage sample.
+        The value unit is milli-Volt.
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -561,10 +888,10 @@ int16_t PAC194x5x_GetVBUSn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channe
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVBUSn_mV(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetVBUSn_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetVBUSn_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetVBUSn_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -575,7 +902,7 @@ int16_t PAC194x5x_GetVBUSn_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channel
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -584,10 +911,10 @@ int16_t PAC194x5x_GetVBUSn_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channel
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVSENSEn_reg(pPACdevice, 1, &reg_value);
+            errorCode = PAC194x5x_GetVSENSEn_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetVSENSEn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetVSENSEn_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
@@ -599,7 +926,7 @@ int16_t PAC194x5x_GetVSENSEn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -608,22 +935,22 @@ int16_t PAC194x5x_GetVSENSEn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVSENSEn_mV(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetVSENSEn_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetVSENSEn_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetVSENSEn_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
     @Summary
         Gets the current Isense value.
     @Description
-        This method computes the value of the current flowing through the 
-        sense resistor, expressed in mA.
+        This method gets the most recent calculated value of the sense current samples.
+        The value unit is milli-Amp.
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -632,10 +959,10 @@ int16_t PAC194x5x_GetVSENSEn_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetISENSEn_mA(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetISENSEn_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetISENSEn_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetISENSEn_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -647,7 +974,7 @@ int16_t PAC194x5x_GetISENSEn_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -656,10 +983,10 @@ int16_t PAC194x5x_GetISENSEn_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVBUSn_AVG_reg(pPACdevice, 1, &reg_value);
+            errorCode = PAC194x5x_GetVBUSn_AVG_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetVBUSn_AVG_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetVBUSn_AVG_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
@@ -672,7 +999,7 @@ int16_t PAC194x5x_GetVBUSn_AVG_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t ch
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -681,10 +1008,10 @@ int16_t PAC194x5x_GetVBUSn_AVG_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t ch
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVBUSn_AVG_mV(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetVBUSn_AVG_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetVBUSn_AVG_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetVBUSn_AVG_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -696,7 +1023,7 @@ int16_t PAC194x5x_GetVBUSn_AVG_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t cha
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -705,10 +1032,10 @@ int16_t PAC194x5x_GetVBUSn_AVG_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t cha
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVSENSEn_AVG_reg(pPACdevice, 1, &reg_value);
+            errorCode = PAC194x5x_GetVSENSEn_AVG_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetVSENSEn_AVG_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetVSENSEn_AVG_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
@@ -721,7 +1048,7 @@ int16_t PAC194x5x_GetVSENSEn_AVG_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t 
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -730,10 +1057,10 @@ int16_t PAC194x5x_GetVSENSEn_AVG_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t 
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVSENSEn_AVG_mV(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetVSENSEn_AVG_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetVSENSEn_AVG_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetVSENSEn_AVG_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -746,7 +1073,7 @@ int16_t PAC194x5x_GetVSENSEn_AVG_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t c
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -755,10 +1082,10 @@ int16_t PAC194x5x_GetVSENSEn_AVG_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t c
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetISENSEn_AVG_mA(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetISENSEn_AVG_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetISENSEn_AVG_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetISENSEn_AVG_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -769,7 +1096,7 @@ int16_t PAC194x5x_GetISENSEn_AVG_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t c
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -778,21 +1105,22 @@ int16_t PAC194x5x_GetISENSEn_AVG_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t c
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVPOWERn_reg(pPACdevice, 1, &reg_value);
+            errorCode = PAC194x5x_GetVPOWERn_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetVPOWERn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint32_t* pregister_val);
+uint16_t PAC194x5x_GetVPOWERn_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint32_t* pregister_val);
 
 
 /**
     @Summary
         Returns the current real Vpower value.
     @Description
-        This method provides the power value sample latched in VPOWER register, expressed in mW.
+        This method returns the most recent calculated value of the proportional power for each channel.
+        The value unit is milli-Watt.
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data
+        pdevice - PAC194x/5x device context data
     @Param
         channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Param
@@ -801,10 +1129,10 @@ int16_t PAC194x5x_GetVPOWERn_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
         The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_GetVPOWERn_mW(pPACdevice, 1, &value);
+            errorCode = PAC194x5x_GetVPOWERn_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetVPOWERn_mW(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetVPOWERn_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -833,7 +1161,7 @@ int16_t PAC194x5x_GetVPOWERn_mW(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_GetSMBusSettings_reg(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetSMBusSettings_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PSMBUS_SETTINGS_REGISTER pSMBus_reg);
+uint16_t PAC194x5x_GetSMBusSettings_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_SMBUS_SETTINGS_REGISTER pSMBus_reg);
 
 
 /**
@@ -862,7 +1190,7 @@ int16_t PAC194x5x_GetSMBusSettings_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194
             errorCode = PAC194x5x_SetSMBusSettings_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetSMBusSettings_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_SMBUS_SETTINGS_REGISTER SMBus_reg);
+uint16_t PAC194x5x_SetSMBusSettings_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_SMBUS_SETTINGS_REGISTER SMBus_reg);
 
 
 /**
@@ -895,7 +1223,7 @@ int16_t PAC194x5x_SetSMBusSettings_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194
             errorCode = PAC194x5x_GetNegPwrFsr_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetNegPwrFsr_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t reg_select, PAC194X5X_PNEG_PWR_FSR_REGISTER pNegPwrFsr_reg);
+uint16_t PAC194x5x_GetNegPwrFsr_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t reg_select, PPAC194X5X_NEG_PWR_FSR_REGISTER pNegPwrFsr_reg);
 
 
 /**
@@ -925,7 +1253,7 @@ int16_t PAC194x5x_GetNegPwrFsr_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t re
             errorCode = PAC194x5x_SetNegPwrFsr_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetNegPwrFsr_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_NEG_PWR_FSR_REGISTER NegPwrFsr_reg);
+uint16_t PAC194x5x_SetNegPwrFsr_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_NEG_PWR_FSR_REGISTER NegPwrFsr_reg);
 
 
 /**
@@ -954,7 +1282,7 @@ int16_t PAC194x5x_SetNegPwrFsr_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_
             errorCode = PAC194x5x_GetSlow_reg(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetSlow_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PSLOW_REGISTER pSlow_reg);
+uint16_t PAC194x5x_GetSlow_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_SLOW_REGISTER pSlow_reg);
 
 
 /**
@@ -983,7 +1311,7 @@ int16_t PAC194x5x_GetSlow_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PSLOW
             errorCode = PAC194x5x_SetSlow_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetSlow_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_SLOW_REGISTER Slow_reg);
+uint16_t PAC194x5x_SetSlow_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_SLOW_REGISTER Slow_reg);
 
 
 /**
@@ -1012,7 +1340,7 @@ int16_t PAC194x5x_SetSlow_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_SLOW_
             errorCode = PAC194x5x_GetAccumConfig_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetAccumConfig_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t reg_select, PAC194X5X_PACCUM_CONFIG_REGISTER pAccumConfig_reg);
+uint16_t PAC194x5x_GetAccumConfig_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t reg_select, PPAC194X5X_ACCUM_CONFIG_REGISTER pAccumConfig_reg);
 
 
 /**
@@ -1038,7 +1366,7 @@ int16_t PAC194x5x_GetAccumConfig_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t 
             errorCode = PAC194x5x_SetAccumConfig_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetAccumConfig_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_ACCUM_CONFIG_REGISTER AccumConfig_reg);
+uint16_t PAC194x5x_SetAccumConfig_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_ACCUM_CONFIG_REGISTER AccumConfig_reg);
 
 
 /**
@@ -1082,7 +1410,7 @@ int16_t PAC194x5x_SetAccumConfig_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5
             errorCode = PAC194x5x_GetAlertStatus_reg(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetAlertStatus_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PALERT_STATUS_REGISTER pAlertStatus_reg);
+uint16_t PAC194x5x_GetAlertStatus_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_ALERT_STATUS_REGISTER pAlertStatus_reg);
 
 
 /**
@@ -1127,7 +1455,7 @@ int16_t PAC194x5x_GetAlertStatus_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5
             errorCode = PAC194x5x_GetAlertEnable_reg(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetAlertEnable_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PALERT_REGISTER pAlertEnable_reg);
+uint16_t PAC194x5x_GetAlertEnable_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_ALERT_REGISTER pAlertEnable_reg);
 
 
 /**
@@ -1173,7 +1501,7 @@ int16_t PAC194x5x_GetAlertEnable_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5
             errorCode = PAC194x5x_SetAlertEnable_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetAlertEnable_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_ALERT_REGISTER AlertEnable_reg);
+uint16_t PAC194x5x_SetAlertEnable_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_ALERT_REGISTER AlertEnable_reg);
 
 
 /**
@@ -1218,7 +1546,7 @@ int16_t PAC194x5x_SetAlertEnable_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5
             errorCode = PAC194x5x_GetSlowAlert1_reg(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetSlowAlert1_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PALERT_REGISTER pSlowAlert1_reg);
+uint16_t PAC194x5x_GetSlowAlert1_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_ALERT_REGISTER pSlowAlert1_reg);
 
 
 /**
@@ -1263,7 +1591,7 @@ int16_t PAC194x5x_GetSlowAlert1_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X
             errorCode = PAC194x5x_SetSlowAlert1_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetSlowAlert1_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_ALERT_REGISTER AlertEnable_reg);
+uint16_t PAC194x5x_SetSlowAlert1_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_ALERT_REGISTER SlowAlert1_reg);
 
 
 /**
@@ -1308,7 +1636,7 @@ int16_t PAC194x5x_SetSlowAlert1_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X
             errorCode = PAC194x5x_GetGpioAlert2_reg(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetGpioAlert2_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PALERT_REGISTER pGpioAlert2_reg);
+uint16_t PAC194x5x_GetGpioAlert2_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_ALERT_REGISTER pGpioAlert2_reg);
 
 
 /**
@@ -1353,7 +1681,7 @@ int16_t PAC194x5x_GetGpioAlert2_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X
             errorCode = PAC194x5x_SetGpioAlert2_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetGpioAlert2_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_ALERT_REGISTER AlertEnable_reg);
+uint16_t PAC194x5x_SetGpioAlert2_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_ALERT_REGISTER GpioAlert2_reg);
 
 
 /**
@@ -1380,7 +1708,7 @@ int16_t PAC194x5x_SetGpioAlert2_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X
             errorCode = PAC194x5x_GetAccFullness_reg(PACdevice, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetAccFullness_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_PACCUM_LIMITS_REGISTER pAccFullnessLimits_reg);
+uint16_t PAC194x5x_GetAccFullness_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PPAC194X5X_ACCUM_LIMITS_REGISTER pAccFullnessLimits_reg);
 
 
 /**
@@ -1407,7 +1735,7 @@ int16_t PAC194x5x_GetAccFullness_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5
             errorCode = PAC194x5x_SetAccFullness_reg(PACdevice, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetAccFullness_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5X_ACCUM_LIMITS_REGISTER AccFullnessLimits_reg);
+uint16_t PAC194x5x_SetAccFullness_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, PAC194X5X_ACCUM_LIMITS_REGISTER AccFullnessLimits_reg);
 
 
 /**
@@ -1430,7 +1758,7 @@ int16_t PAC194x5x_SetAccFullness_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, PAC194X5
             errorCode = PAC194x5x_GetOClimit_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetOClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetOClimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
@@ -1453,7 +1781,7 @@ int16_t PAC194x5x_GetOClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_SetOClimit_reg(PACdevice, 1, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetOClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
+uint16_t PAC194x5x_SetOClimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
 
 
 /**
@@ -1476,7 +1804,7 @@ int16_t PAC194x5x_SetOClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_GetOClimit_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetOClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetOClimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -1499,7 +1827,7 @@ int16_t PAC194x5x_GetOClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_SetOClimit_real(PACdevice, 1, value);
         <code>
 */
-int16_t PAC194x5x_SetOClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
+uint16_t PAC194x5x_SetOClimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
 
 
 /**
@@ -1522,7 +1850,7 @@ int16_t PAC194x5x_SetOClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_GetUClimit_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetUClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetUClimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
@@ -1545,7 +1873,7 @@ int16_t PAC194x5x_GetUClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_SetUClimit_reg(PACdevice, 1, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetUClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
+uint16_t PAC194x5x_SetUClimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
 
 
 /**
@@ -1568,7 +1896,7 @@ int16_t PAC194x5x_SetUClimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_GetUClimit_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetUClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetUClimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -1591,7 +1919,7 @@ int16_t PAC194x5x_GetUClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_SetUClimit_real(PACdevice, 1, value);
         <code>
 */
-int16_t PAC194x5x_SetUClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
+uint16_t PAC194x5x_SetUClimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
 
 
 /**
@@ -1614,7 +1942,7 @@ int16_t PAC194x5x_SetUClimit_mA(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_GetOPlimit_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetOPlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint32_t* pregister_val);
+uint16_t PAC194x5x_GetOPlimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint32_t* pregister_val);
 
 
 /**
@@ -1637,7 +1965,7 @@ int16_t PAC194x5x_GetOPlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_SetOPlimit_reg(PACdevice, 1, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetOPlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint32_t register_val);
+uint16_t PAC194x5x_SetOPlimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint32_t register_val);
 
 
 /**
@@ -1660,7 +1988,7 @@ int16_t PAC194x5x_SetOPlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_GetOPlimit_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetOPlimit_mW(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetOPlimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -1683,7 +2011,7 @@ int16_t PAC194x5x_GetOPlimit_mW(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_SetOPlimit_real(PACdevice, 1, value);
         <code>
 */
-int16_t PAC194x5x_SetOPlimit_mW(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
+uint16_t PAC194x5x_SetOPlimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
 
 
 /**
@@ -1706,7 +2034,7 @@ int16_t PAC194x5x_SetOPlimit_mW(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_GetOVlimit_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetOVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetOVlimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
@@ -1729,7 +2057,7 @@ int16_t PAC194x5x_GetOVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_SetOVlimit_reg(PACdevice, 1, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetOVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
+uint16_t PAC194x5x_SetOVlimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
 
 
 /**
@@ -1752,7 +2080,7 @@ int16_t PAC194x5x_SetOVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_GetOVlimit_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetOVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetOVlimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -1775,7 +2103,7 @@ int16_t PAC194x5x_GetOVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_SetOVlimit_real(PACdevice, 1, value);
         <code>
 */
-int16_t PAC194x5x_SetOVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
+uint16_t PAC194x5x_SetOVlimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
 
 
 /**
@@ -1798,7 +2126,7 @@ int16_t PAC194x5x_SetOVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_GetUVlimit_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetUVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
+uint16_t PAC194x5x_GetUVlimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t* pregister_val);
 
 
 /**
@@ -1821,7 +2149,7 @@ int16_t PAC194x5x_GetUVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_SetUVlimit_reg(PACdevice, 1, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetUVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
+uint16_t PAC194x5x_SetUVlimit_reg(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, uint16_t register_val);
 
 
 /**
@@ -1844,7 +2172,7 @@ int16_t PAC194x5x_SetUVlimit_reg(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_GetUVlimit_real(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_GetUVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_GetUVlimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -1867,7 +2195,7 @@ int16_t PAC194x5x_GetUVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_SetUVlimit_real(PACdevice, 1, value);
         <code>
 */
-int16_t PAC194x5x_SetUVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
+uint16_t PAC194x5x_SetUVlimit_real(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float value);
 
 
 /**
@@ -1894,7 +2222,7 @@ int16_t PAC194x5x_SetUVlimit_mV(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chann
             errorCode = PAC194x5x_GetLimitNsamples_reg(PACdevice, 1, &reg_value);
         <code>
 */
-int16_t PAC194x5x_GetLimitNsamples(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t reg_select, PAC194X5X_PLIMIT_NSAMPLES_REGISTER pLimitNsamples_reg);
+uint16_t PAC194x5x_GetLimitNsamples(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t reg_select, PPAC194X5X_LIMIT_NSAMPLES_REGISTER pLimitNsamples_reg);
 
 
 /**
@@ -1921,7 +2249,7 @@ int16_t PAC194x5x_GetLimitNsamples(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t re
             errorCode = PAC194x5x_SetLimitNsamples_reg(PACdevice, 1, reg_value);
         <code>
 */
-int16_t PAC194x5x_SetLimitNsamples(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t reg_select, PAC194X5X_LIMIT_NSAMPLES_REGISTER LimitNsamples_reg);
+uint16_t PAC194x5x_SetLimitNsamples(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t reg_select, PAC194X5X_LIMIT_NSAMPLES_REGISTER LimitNsamples_reg);
 
 
 /**
@@ -1946,7 +2274,7 @@ int16_t PAC194x5x_SetLimitNsamples(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t re
             errorCode = PAC194x5x_GetVBUS_LSBunit(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_VBUS_LSBunit(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_VBUS_LSBunit(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -1971,7 +2299,7 @@ int16_t PAC194x5x_VBUS_LSBunit(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channe
             errorCode = PAC194x5x_GetVSENSE_LSBunit(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_VSENSE_LSBunit(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_VSENSE_LSBunit(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
@@ -1996,34 +2324,70 @@ int16_t PAC194x5x_VSENSE_LSBunit(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t chan
             errorCode = PAC194x5x_GetVPOWER_LSBunit(PACdevice, 1, &value);
         <code>
 */
-int16_t PAC194x5x_VPOWER_LSBunit(PAC194X5X_PDEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
+uint16_t PAC194x5x_VPOWER_LSBunit(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo, float* pvalue);
 
 
 /**
     @Summary
-        Tests if the PAC194x5x instance is busy.
+        Updates the Channel Polarity information in the device context.
     @Description
-        Tests if the PAC194x5x instance is busy.
+        This method updates the Channel Polarity Device Context.
     @Preconditions
         None
     @Param
-        pdevice - PAC194x5x device context data.
+        pdevice - PAC194x/5x device context data.
+    @Param
+        channelNo - the channel index. Accepted values are 1, 2, 3 or 4.
     @Returns
-        True if the PAC194x5x instance is busy and false if it not busy.
-        True if pdevice is NULL.
+        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
     @Example
         <code>
-            errorCode = PAC194x5x_Device_IsBusy(pPACdevice);
-        </code>
+            errorCode = PAC194x5x_UpdateContext_ChannelPolarity(PACdevice, 1);
+        <code>
 */
-bool PAC194x5x_Device_IsBusy(PAC194X5X_PDEVICE_CONTEXT pdevice);
+uint16_t PAC194x5x_UpdateContext_ChannelPolarity(PPAC194X5X_DEVICE_CONTEXT pdevice, uint8_t channelNo);
 
-#ifdef	__cplusplus
+
+/**
+    @Summary
+        Updates the device CTRL_LAT register value cached in the device context.
+    @Description
+        This method updates the device CTRL_LAT register value cached in the device context.
+    @Preconditions
+        None
+    @Param
+        pdevice - PAC194x/5x device context data.
+    @Returns
+        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
+    @Example
+        <code>
+            errorCode = PAC194x5x_UpdateContext_Ctrl(PACdevice);
+        <code>
+*/
+uint16_t PAC194x5x_UpdateContext_Ctrl(PPAC194X5X_DEVICE_CONTEXT pdevice);
+
+
+/**
+    @Summary
+        Updates the device ACCUM_CONFIG_LAT register value cached in the device context.
+    @Description
+        This method updates the device ACCUM_CONFIG_LAT register value cached in the device context.
+    @Preconditions
+        None
+    @Param
+        pdevice - PAC194x/5x device context data.
+    @Returns
+        The error code. For execution success, the method returns PAC194X5X_SUCCESS value.
+    @Example
+        <code>
+            errorCode = PAC194x5x_UpdateContext_AccumConfig(PACdevice);
+        <code>
+*/
+uint16_t PAC194x5x_UpdateContext_AccumConfig(PPAC194X5X_DEVICE_CONTEXT pdevice);
+
+
+#ifdef __cplusplus
 }
 #endif /* __cplusplus */
 
-#endif	// _PAC194X_5X_H
-
-/**
-  End of File
-*/
+#endif  /* PAC194X5X_H */
