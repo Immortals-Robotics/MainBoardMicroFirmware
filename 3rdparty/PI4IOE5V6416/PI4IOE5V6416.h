@@ -125,7 +125,7 @@ public:
 
         uint8_t test = {};
         const int8_t result = read_bytes(this->addr, Reg::OUTPUT_PORT_0, &test, 1);
-        return result == 1 && test > 0;
+        return result == 1;
     }
 
     uint8_t getAddress() const {

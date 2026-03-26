@@ -84,6 +84,8 @@ void Ioex::init()
 
     m_outputs = 0;
     m_ioex.write(m_outputs);
+
+    read();
 }
 
 void Ioex::read()
