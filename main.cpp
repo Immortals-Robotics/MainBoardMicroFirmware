@@ -140,7 +140,7 @@ int main()
 {
     stdio_init_all();
 
-    printf("hello from rp2040\n");
+    printf("hello from rp2040, and hippo :D\n");
 
     // Initialize I2C 0
     i2c_init(i2c0, 400 * 1000);

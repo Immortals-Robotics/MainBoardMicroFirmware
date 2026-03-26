@@ -1,7 +1,6 @@
 #pragma once
 
 #include <hardware/i2c.h>
-
 #include "3rdparty/PAC194x_5x/PAC194x_5x.h"
 
 class PowerMonitor
@@ -9,8 +8,8 @@ class PowerMonitor
 public:
     enum class Rail
     {
-        V5,
-        V24,
+        V24,  // CH1: input → 24V rail (power components: motors, actuators, etc.)
+        V5,   // CH2: 24V rail → 5V regulator (RPi, micro, logic)
     };
 
     PowerMonitor(i2c_inst_t* i2c);
@@ -24,7 +23,7 @@ public:
     float getPower(Rail rail);
 
 private:
-    static constexpr uint16_t kI2cAddress = 0x13;
+    static constexpr uint8_t kI2cAddress = 0x13;
 
     i2c_inst_t* const m_i2c;
     PAC194X5X_DEVICE_CONTEXT m_pacDevice;
