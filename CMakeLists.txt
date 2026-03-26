@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.13...3.27)
 
 set(PI4IOE5V6416_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/PI4IOE5V6416")
 set(PAC194X_5X_DIR "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/PAC194x_5x")
@@ -8,7 +8,7 @@ set(PICO_BOARD main-board)
 
 # initialize pico-sdk from PICO_SDK_PATH
 # note: this must happen before project()
-include($ENV{PICO_SDK_PATH}/pico_sdk_init.cmake)
+include(pico_sdk_import.cmake)
 
 project(micro-firmware C CXX ASM)
 set(CMAKE_C_STANDARD 11)
@@ -43,8 +43,6 @@ add_executable(micro-firmware
 
 pico_enable_stdio_usb(micro-firmware 0)
 pico_enable_stdio_uart(micro-firmware 1)
-
-pico_add_extra_outputs(micro-firmware)
 
 target_link_libraries(micro-firmware
   pico_stdlib

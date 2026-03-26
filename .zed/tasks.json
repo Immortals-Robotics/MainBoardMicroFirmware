@@ -1,0 +1,18 @@
+[
+    {
+        "label": "Flash",
+        "command": "openocd -f interface/raspberrypi-swd.cfg -f target/rp2040.cfg -c 'program out/micro-firmware.elf verify reset exit'",
+        "reveal": "always"
+    },
+    {
+        "label": "Reset",
+        "command": "openocd -f interface/raspberrypi-swd.cfg -f target/rp2040.cfg -c 'init; reset run; exit'",
+        "reveal": "always"
+    },
+    {
+        "label": "Monitor",
+        "command": "tio -b 115200 /dev/serial0",
+        "use_new_terminal": true,
+        "reveal": "always"
+    }
+]
