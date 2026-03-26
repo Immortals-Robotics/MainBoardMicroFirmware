@@ -15,6 +15,7 @@
 struct Context
 {
     std::unique_ptr<Ioex>         ioex;
+    std::unique_ptr<Buzzer>       buzzer;
     std::unique_ptr<Mikona>       mikona;
     std::unique_ptr<PowerMonitor> powerMonitor;
     std::unique_ptr<BallDetector> ballDetector;
@@ -34,12 +35,11 @@ void core0_entry()
         MicroCommand command = {};
         if (g_context.protocol->consume_rx_buffer(&command))
         {
-            const bool charge    = command.flags & (1 << 0);
-            const bool discharge = command.flags & (1 << 1);
+            const bool charge         = command.flags & (1 << 0);
+            const bool discharge      = command.flags & (1 << 1);
             const bool wifi_connected = command.flags & (1 << 2);
             const bool wifi_activity  = command.flags & (1 << 3);
-            const bool fault     = command.flags & (1 << 4);
-            const bool buzzer    = command.flags & (1 << 5);
+            const bool fault          = command.flags & (1 << 4);
 
             g_context.mikona->setCharge(charge);
             g_context.mikona->setDischarge(discharge);
@@ -56,9 +56,6 @@ void core0_entry()
 
             g_context.faultMainBoard = fault;
             g_context.ioex->setLedFault(g_context.faultMainBoard || g_context.faultMicro);
-
-            // TODO: improve buzzer
-            //gpio_put(MAIN_BOARD_BUZZER_PIN, buzzer);
         }
 
         // Fill status
@@ -130,7 +127,6 @@ void core0_entry()
                 g_context.ioex->setLedMikona(Ioex::LedMikona::Charging);
             else
                 g_context.ioex->setLedMikona(Ioex::LedMikona::None);
-
         }
 
         g_context.ioex->write();
@@ -161,51 +157,11 @@ int main()
     gpio_set_function(MAIN_BOARD_I2C_1_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(MAIN_BOARD_I2C_1_SCL_PIN, GPIO_FUNC_I2C);
 
-    Buzzer buzzer(MAIN_BOARD_BUZZER_PIN);
-    buzzer.init();
-
     g_context.ioex = std::make_unique<Ioex>(i2c0);
     g_context.ioex->init();
 
-    // --- IOEX debug ---
-    while (true)
-    {
-        auto& ioex = *g_context.ioex;
-
-        // LED sweep
-        const auto led_delay_ms = 50;
-        ioex.setLedFault(true);   ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedFault(false);  ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedIr(true);      ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedIr(false);     ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedMikona(Ioex::LedMikona::Charging); ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedMikona(Ioex::LedMikona::Done);     ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedMikona(Ioex::LedMikona::None);     ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedWifi(Ioex::LedWifi::Connected); ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedWifi(Ioex::LedWifi::Activity);  ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedWifi(Ioex::LedWifi::None);      ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedSwitch(Ioex::LedSwitch::Warning); ioex.write(); sleep_ms(led_delay_ms);
-        ioex.setLedSwitch(Ioex::LedSwitch::Normal);  ioex.write(); sleep_ms(led_delay_ms);
-
-        // Frequency sweep at 50% duty: 100Hz -> 10000Hz
-        printf("[BUZZER] frequency sweep\n");
-        for (uint32_t freq = 100; freq <= 5000; freq += 500)
-        {
-            printf("  freq=%luHz\n", freq);
-            buzzer.set(freq, 0.25f);
-            sleep_ms(300);
-        }
-
-        buzzer.set(100, 0);
-
-        // Print inputs
-        ioex.read();
-        printf("[IOEX] ID=%d\n", ioex.getId());
-        printf("[IOEX] DIP1=%d DIP2=%d DIP3=%d DIP4=%d\n",
-            ioex.getDip(1), ioex.getDip(2), ioex.getDip(3), ioex.getDip(4));
-        printf("[IOEX] Button=%d\n", ioex.getButton());
-    }
-    // --- end IOEX debug ---
+    g_context.buzzer = std::make_unique<Buzzer>(MAIN_BOARD_BUZZER_PIN);
+    g_context.buzzer->init();
 
     g_context.mikona = std::make_unique<Mikona>(i2c0);
     g_context.mikona->init();
@@ -213,34 +169,15 @@ int main()
     g_context.powerMonitor = std::make_unique<PowerMonitor>(i2c0);
     g_context.powerMonitor->init();
 
-    // TODO: remove debug
-    sleep_ms(250);
-    g_context.powerMonitor->refresh();
-
-    const float v24_V = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V24);
-    const float v24_I = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V24);
-    printf("  [V24] V=%.3fV  I=%.4fA  P=%.3fW\n", v24_V, v24_I, v24_V * v24_I);
-
-    const float v5_V = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V5);
-    const float v5_I = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V5);
-    printf("  [V5]  V=%.3fV  I=%.4fA  P=%.3fW\n", v5_V, v5_I, v5_V * v5_I);
-
-    const float elapsed = g_context.powerMonitor->getElapsedTime();
-    printf("  elapsed=%.2fs\n", elapsed);
-
-    printf("  [V24] E=%.3fmWh\n", g_context.powerMonitor->getEnergy(PowerMonitor::Rail::V24));
-    printf("  [V5]  E=%.3fmWh\n", g_context.powerMonitor->getEnergy(PowerMonitor::Rail::V5));
-    printf("---\n");
-
     g_context.ballDetector = std::make_unique<BallDetector>();
     g_context.ballDetector->init();
 
     g_context.protocol = std::make_unique<Protocol>();
     g_context.protocol->init();
 
+    g_context.buzzer->play(Buzzer::Sequence::BootJingle);
+
     multicore_launch_core1(core1_entry);
-
-
 
     core0_entry();
 }
