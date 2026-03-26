@@ -4,6 +4,7 @@
 
 #include <pico/stdlib.h>
 #include <pico/multicore.h>
+#include "buzzer.h"
 
 #include "ball-detector.h"
 #include "mikona.h"
@@ -160,9 +161,8 @@ int main()
     gpio_set_function(MAIN_BOARD_I2C_1_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(MAIN_BOARD_I2C_1_SCL_PIN, GPIO_FUNC_I2C);
 
-    gpio_init(MAIN_BOARD_BUZZER_PIN);
-    gpio_set_dir(MAIN_BOARD_BUZZER_PIN, GPIO_OUT);
-    gpio_put(MAIN_BOARD_BUZZER_PIN, 0);
+    Buzzer buzzer(MAIN_BOARD_BUZZER_PIN);
+    buzzer.init();
 
     g_context.ioex = std::make_unique<Ioex>(i2c0);
     g_context.ioex->init();
@@ -187,12 +187,16 @@ int main()
         ioex.setLedSwitch(Ioex::LedSwitch::Warning); ioex.write(); sleep_ms(led_delay_ms);
         ioex.setLedSwitch(Ioex::LedSwitch::Normal);  ioex.write(); sleep_ms(led_delay_ms);
 
-        // Quick beeps
-        for (int i = 0; i < 2; i++)
+        // Frequency sweep at 50% duty: 100Hz -> 10000Hz
+        printf("[BUZZER] frequency sweep\n");
+        for (uint32_t freq = 100; freq <= 5000; freq += 500)
         {
-            //gpio_put(MAIN_BOARD_BUZZER_PIN, 1); sleep_ms(30);
-            //gpio_put(MAIN_BOARD_BUZZER_PIN, 0); sleep_ms(30);
+            printf("  freq=%luHz\n", freq);
+            buzzer.set(freq, 0.25f);
+            sleep_ms(300);
         }
+
+        buzzer.set(100, 0);
 
         // Print inputs
         ioex.read();

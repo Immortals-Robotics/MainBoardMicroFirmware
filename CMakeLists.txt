@@ -23,6 +23,8 @@ add_executable(micro-firmware
   ball-detector.cpp
   ioex.h
   ioex.cpp
+  buzzer.h
+  buzzer.cpp
   mikona.h
   mikona.cpp
   power_monitor.h
