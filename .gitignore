@@ -17,3 +17,4 @@
 
 # Cmake build folder
 build/
+out/

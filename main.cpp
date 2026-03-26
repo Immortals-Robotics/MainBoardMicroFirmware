@@ -18,7 +18,7 @@ struct Context
     std::unique_ptr<PowerMonitor> powerMonitor;
     std::unique_ptr<BallDetector> ballDetector;
     std::unique_ptr<Protocol>     protocol;
-    
+
     bool faultMicro     = false;
     bool faultMainBoard = false;
 } g_context;
@@ -28,88 +28,86 @@ void core0_entry()
     while(true)
     {
         // Consume command
-        Immortals_Protos_MicroCommand command = Immortals_Protos_MicroCommand_init_zero;
+        MicroCommand command = {};
         if (g_context.protocol->consume_rx_buffer(&command))
         {
-            if (command.has_mikona)
-            {
-                g_context.mikona->setCharge(command.mikona.charge);
-                g_context.mikona->setDischarge(command.mikona.discharge);
+            const bool charge    = command.flags & (1 << 0);
+            const bool discharge = command.flags & (1 << 1);
+            const bool wifi_connected = command.flags & (1 << 2);
+            const bool wifi_activity  = command.flags & (1 << 3);
+            const bool fault     = command.flags & (1 << 4);
+            const bool buzzer    = command.flags & (1 << 5);
 
-                g_context.mikona->kickA(command.mikona.kick_a);
-                g_context.mikona->kickB(command.mikona.kick_b);
-            }
+            g_context.mikona->setCharge(charge);
+            g_context.mikona->setDischarge(discharge);
 
-            if (command.has_led)
-            {
-                if (command.led.wifi_acitivity)
-                    g_context.ioex->setLedWifi(Ioex::LedWifi::Activity);
-                else if (command.led.wifi_connected)
-                    g_context.ioex->setLedWifi(Ioex::LedWifi::Connected);
-                else
-                    g_context.ioex->setLedWifi(Ioex::LedWifi::None);
+            g_context.mikona->kickA(command.kick_a);
+            g_context.mikona->kickB(command.kick_b);
 
-                g_context.faultMainBoard = command.led.fault;
-                g_context.ioex->setLedFault(g_context.faultMainBoard || g_context.faultMicro);
-            }
+            if (wifi_activity)
+                g_context.ioex->setLedWifi(Ioex::LedWifi::Activity);
+            else if (wifi_connected)
+                g_context.ioex->setLedWifi(Ioex::LedWifi::Connected);
+            else
+                g_context.ioex->setLedWifi(Ioex::LedWifi::None);
+
+            g_context.faultMainBoard = fault;
+            g_context.ioex->setLedFault(g_context.faultMainBoard || g_context.faultMicro);
 
             // TODO: improve buzzer
-            gpio_put(MAIN_BOARD_BUZZER_PIN, command.buzzer);
+            //gpio_put(MAIN_BOARD_BUZZER_PIN, buzzer);
         }
 
         // Fill status
         {
-            Immortals_Protos_MicroStatus status = Immortals_Protos_MicroStatus_init_zero;
+            MicroStatus status = {};
 
             status.robot_id = g_context.ioex->getId();
 
-            status.dip_switch_1 = g_context.ioex->getDip(1);
-            status.dip_switch_2 = g_context.ioex->getDip(2);
-            status.dip_switch_3 = g_context.ioex->getDip(3);
-            status.dip_switch_4 = g_context.ioex->getDip(4);
-
-            status.button = g_context.ioex->getButton();
-
-            status.ballDetected = g_context.ballDetector->ball_detected();
+            status.flags = 0;
+            if (g_context.ioex->getDip(1)) status.flags |= (1 << 0);
+            if (g_context.ioex->getDip(2)) status.flags |= (1 << 1);
+            if (g_context.ioex->getDip(3)) status.flags |= (1 << 2);
+            if (g_context.ioex->getDip(4)) status.flags |= (1 << 3);
+            if (g_context.ioex->getButton()) status.flags |= (1 << 4);
+            if (g_context.ballDetector->ball_detected()) status.flags |= (1 << 5);
 
             const Mikona::Status mikonaStatus = g_context.mikona->getStatus();
-            status.mikona.connected   = g_context.mikona->isConnected();
-            status.mikona.charging    = mikonaStatus.charge;
-            status.mikona.discharging = mikonaStatus.discharge;
-            status.mikona.done        = mikonaStatus.done;
-            status.mikona.fault       = mikonaStatus.fault;
-            status.mikona.v_out       = g_context.mikona->getVoltage();
+            status.mikona_flags = 0;
+            if (g_context.mikona->isConnected()) status.mikona_flags |= (1 << 0);
+            if (mikonaStatus.charge)             status.mikona_flags |= (1 << 1);
+            if (mikonaStatus.discharge)          status.mikona_flags |= (1 << 2);
+            if (mikonaStatus.done)               status.mikona_flags |= (1 << 3);
+            if (mikonaStatus.fault)              status.mikona_flags |= (1 << 4);
+            status.mikona_v_out = g_context.mikona->getVoltage();
 
-            status.motor_1.status = gpio_get(MAIN_BOARD_M1_CTRL_STATUS_PIN);
-            status.motor_1.fault  = gpio_get(MAIN_BOARD_M1_DRV_FAULT_PIN);
+            status.motor_flags = 0;
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M1_CTRL_STATUS_PIN) ? (1 << 0) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M1_DRV_FAULT_PIN)  ? (1 << 1) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M2_CTRL_STATUS_PIN) ? (1 << 2) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M2_DRV_FAULT_PIN)  ? (1 << 3) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M3_CTRL_STATUS_PIN) ? (1 << 4) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M3_DRV_FAULT_PIN)  ? (1 << 5) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M4_CTRL_STATUS_PIN) ? (1 << 6) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_M4_DRV_FAULT_PIN)  ? (1 << 7) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_MD_CTRL_STATUS_PIN) ? (1 << 8) : 0);
+            status.motor_flags |= (gpio_get(MAIN_BOARD_MD_DRV_FAULT_PIN)  ? (1 << 9) : 0);
 
-            status.motor_2.status = gpio_get(MAIN_BOARD_M2_CTRL_STATUS_PIN);
-            status.motor_2.fault  = gpio_get(MAIN_BOARD_M2_DRV_FAULT_PIN);
+            status.power_5v_voltage = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V5);
+            status.power_5v_current = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V5);
+            status.power_5v_power   = g_context.powerMonitor->getPower  (PowerMonitor::Rail::V5);
 
-            status.motor_3.status = gpio_get(MAIN_BOARD_M3_CTRL_STATUS_PIN);
-            status.motor_3.fault  = gpio_get(MAIN_BOARD_M3_DRV_FAULT_PIN);
+            status.power_24v_voltage = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V24);
+            status.power_24v_current = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V24);
+            status.power_24v_power   = g_context.powerMonitor->getPower  (PowerMonitor::Rail::V24);
 
-            status.motor_4.status = gpio_get(MAIN_BOARD_M4_CTRL_STATUS_PIN);
-            status.motor_4.fault  = gpio_get(MAIN_BOARD_M4_DRV_FAULT_PIN);
-
-            status.motor_d.status = gpio_get(MAIN_BOARD_MD_CTRL_STATUS_PIN);
-            status.motor_d.fault  = gpio_get(MAIN_BOARD_MD_DRV_FAULT_PIN);
-
-            status.power_5v.voltage = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V5);
-            status.power_5v.current = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V5);
-            status.power_5v.power   = g_context.powerMonitor->getPower  (PowerMonitor::Rail::V5);
-
-            status.power_24v.voltage = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V24);
-            status.power_24v.current = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V24);
-            status.power_24v.power   = g_context.powerMonitor->getPower  (PowerMonitor::Rail::V24);
-
-            g_context.faultMicro = 
-                status.mikona.fault  ||
-                status.motor_1.fault ||
-                status.motor_2.fault ||
-                status.motor_3.fault ||
-                status.motor_4.fault ||
-                status.motor_d.fault;
+            g_context.faultMicro =
+                (status.mikona_flags & (1 << 4)) ||
+                (status.motor_flags & (1 << 1)) ||
+                (status.motor_flags & (1 << 3)) ||
+                (status.motor_flags & (1 << 5)) ||
+                (status.motor_flags & (1 << 7)) ||
+                (status.motor_flags & (1 << 9));
             g_context.ioex->setLedFault(g_context.faultMainBoard || g_context.faultMicro);
 
             g_context.protocol->fill_tx_buffer(status);
@@ -117,7 +115,7 @@ void core0_entry()
 
         {
             g_context.ioex->setLedIr(g_context.ballDetector->ball_detected());
-            g_context.ioex->setLedFault(g_context.ioex->getButton());
+            g_context.ioex->setLedFault(g_context.faultMainBoard || g_context.faultMicro || g_context.ioex->getButton());
 
             if (g_context.mikona->getStatus().done)
                 g_context.ioex->setLedMikona(Ioex::LedMikona::Done);
@@ -125,7 +123,7 @@ void core0_entry()
                 g_context.ioex->setLedMikona(Ioex::LedMikona::Charging);
             else
                 g_context.ioex->setLedMikona(Ioex::LedMikona::None);
-            
+
         }
     }
 }
@@ -141,6 +139,8 @@ void core1_entry()
 int main()
 {
     stdio_init_all();
+
+    printf("hello from rp2040\n");
 
     // Initialize I2C 0
     i2c_init(i2c0, 400 * 1000);
