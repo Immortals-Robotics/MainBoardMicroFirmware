@@ -94,15 +94,16 @@ void core0_entry()
             status.motor_flags |= (gpio_get(MAIN_BOARD_MD_DRV_FAULT_PIN)  ? (1 << 9) : 0);
 
             g_context.powerMonitor->refresh();
+            g_context.powerMonitor->accumulateEnergy(PowerMonitor::Rail::V5);
+            g_context.powerMonitor->accumulateEnergy(PowerMonitor::Rail::V24);
             status.power_5v_voltage  = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V5);
             status.power_5v_current  = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V5);
 
             status.power_24v_voltage = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V24);
             status.power_24v_current = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V24);
 
-            status.power_elapsed    = g_context.powerMonitor->getElapsedTime();
-            status.power_5v_energy  = g_context.powerMonitor->getEnergy(PowerMonitor::Rail::V5);
-            status.power_24v_energy = g_context.powerMonitor->getEnergy(PowerMonitor::Rail::V24);
+            status.power_5v_energy  = g_context.powerMonitor->getTotalEnergy(PowerMonitor::Rail::V5);
+            status.power_24v_energy = g_context.powerMonitor->getTotalEnergy(PowerMonitor::Rail::V24);
 
             g_context.faultMicro =
                 (status.mikona_flags & (1 << 4)) ||

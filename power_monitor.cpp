@@ -101,6 +101,25 @@ float PowerMonitor::getEnergy(const Rail rail)
     return mWh;
 }
 
+void PowerMonitor::accumulateEnergy(const Rail rail)
+{
+    if (!m_connected) return;
+    float mWh = 0.0f;
+    PAC194x5x_GetEnergy(&m_pacDevice, channelForRail(rail), &mWh);
+    const int idx = (rail == Rail::V5) ? 0 : 1;
+    m_total_energy[idx] += mWh;
+}
+
+float PowerMonitor::getTotalEnergy(const Rail rail)
+{
+    switch (rail)
+    {
+        case Rail::V5:  return m_total_energy[0];
+        case Rail::V24: return m_total_energy[1];
+        default:        return 0.0f;
+    }
+}
+
 float PowerMonitor::getCoulomb(const Rail rail)
 {
     if (!m_connected) return 0.0f;

@@ -36,6 +36,13 @@ public:
     // Requires ACCUM_CONFIG in VPOWER mode (the default) — returns 0 otherwise.
     float getEnergy(Rail rail);  // mWh
 
+    // Add the current per-interval energy reading for the given rail to its running total.
+    // Must be called after refresh() to accumulate the latched value.
+    void accumulateEnergy(Rail rail);
+
+    // Total energy accumulated across all accumulateEnergy() calls since startup.
+    float getTotalEnergy(Rail rail);  // mWh
+
     // Charge accumulated since the last refresh() call.
     // NOTE: requires ACCUM_CONFIG in VSENSE mode (ACC_CONFIG = 0x1 per channel),
     // which conflicts with VPOWER mode needed for getEnergy.
@@ -49,4 +56,5 @@ private:
     i2c_inst_t* const m_i2c;
     PAC194X5X_DEVICE_CONTEXT m_pacDevice;
     bool m_connected = false;
+    float m_total_energy[2] = { 0.0f, 0.0f };  // [0]=V5, [1]=V24
 };
