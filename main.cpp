@@ -27,6 +27,8 @@ void core0_entry()
 {
     while(true)
     {
+        g_context.ioex->read();
+
         // Consume command
         MicroCommand command = {};
         if (g_context.protocol->consume_rx_buffer(&command))
@@ -129,6 +131,8 @@ void core0_entry()
                 g_context.ioex->setLedMikona(Ioex::LedMikona::None);
 
         }
+
+        g_context.ioex->write();
     }
 }
 
@@ -156,8 +160,48 @@ int main()
     gpio_set_function(MAIN_BOARD_I2C_1_SDA_PIN, GPIO_FUNC_I2C);
     gpio_set_function(MAIN_BOARD_I2C_1_SCL_PIN, GPIO_FUNC_I2C);
 
+    gpio_init(MAIN_BOARD_BUZZER_PIN);
+    gpio_set_dir(MAIN_BOARD_BUZZER_PIN, GPIO_OUT);
+    gpio_put(MAIN_BOARD_BUZZER_PIN, 0);
+
     g_context.ioex = std::make_unique<Ioex>(i2c0);
     g_context.ioex->init();
+
+    // --- IOEX debug ---
+    while (true)
+    {
+        auto& ioex = *g_context.ioex;
+
+        // LED sweep
+        const auto led_delay_ms = 50;
+        ioex.setLedFault(true);   ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedFault(false);  ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedIr(true);      ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedIr(false);     ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedMikona(Ioex::LedMikona::Charging); ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedMikona(Ioex::LedMikona::Done);     ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedMikona(Ioex::LedMikona::None);     ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedWifi(Ioex::LedWifi::Connected); ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedWifi(Ioex::LedWifi::Activity);  ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedWifi(Ioex::LedWifi::None);      ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedSwitch(Ioex::LedSwitch::Warning); ioex.write(); sleep_ms(led_delay_ms);
+        ioex.setLedSwitch(Ioex::LedSwitch::Normal);  ioex.write(); sleep_ms(led_delay_ms);
+
+        // Quick beeps
+        for (int i = 0; i < 2; i++)
+        {
+            //gpio_put(MAIN_BOARD_BUZZER_PIN, 1); sleep_ms(30);
+            //gpio_put(MAIN_BOARD_BUZZER_PIN, 0); sleep_ms(30);
+        }
+
+        // Print inputs
+        ioex.read();
+        printf("[IOEX] ID=%d\n", ioex.getId());
+        printf("[IOEX] DIP1=%d DIP2=%d DIP3=%d DIP4=%d\n",
+            ioex.getDip(1), ioex.getDip(2), ioex.getDip(3), ioex.getDip(4));
+        printf("[IOEX] Button=%d\n", ioex.getButton());
+    }
+    // --- end IOEX debug ---
 
     g_context.mikona = std::make_unique<Mikona>(i2c0);
     g_context.mikona->init();
@@ -189,10 +233,6 @@ int main()
 
     g_context.protocol = std::make_unique<Protocol>();
     g_context.protocol->init();
-
-    gpio_init(MAIN_BOARD_BUZZER_PIN);
-    gpio_set_dir(MAIN_BOARD_BUZZER_PIN, GPIO_OUT);
-    gpio_put(MAIN_BOARD_BUZZER_PIN, 0);
 
     multicore_launch_core1(core1_entry);
 

@@ -202,9 +202,9 @@ public:
 
     bool pullUpDownSelection(const Port::Port port, const PullUpDownSelection::PullUpDownSelection pud) {
         if (pud == PullUpDownSelection::PULL_UP) {
-            this->pe.w |= (1 << port);
+            this->pud.w |= (1 << port);
         } else {
-            this->pe.w &= ~(1 << port);
+            this->pud.w &= ~(1 << port);
         }
         return pullup_down_selection_impl();
     }
@@ -227,11 +227,11 @@ private:
     }
 
     bool pullup_down_enable_impl() {
-        return write_bytes(this->addr, Reg::PULL_UP_DOWN_ENABLE_REGISTER_0, this->dir.b, 2);
+        return write_bytes(this->addr, Reg::PULL_UP_DOWN_ENABLE_REGISTER_0, this->pe.b, 2);
     }
 
     bool pullup_down_selection_impl() {
-        return write_bytes(this->addr, Reg::PULL_UP_DOWN_SELECTION_REGISTER_0, this->dir.b, 2);
+        return write_bytes(this->addr, Reg::PULL_UP_DOWN_SELECTION_REGISTER_0, this->pud.b, 2);
     }
 
     int8_t read_bytes(const uint8_t dev, const uint8_t reg, uint8_t* data, const uint8_t size) {
