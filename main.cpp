@@ -93,13 +93,14 @@ void core0_entry()
             status.motor_flags |= (gpio_get(MAIN_BOARD_MD_CTRL_STATUS_PIN) ? (1 << 8) : 0);
             status.motor_flags |= (gpio_get(MAIN_BOARD_MD_DRV_FAULT_PIN)  ? (1 << 9) : 0);
 
-            status.power_5v_voltage = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V5);
-            status.power_5v_current = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V5);
-            status.power_5v_power   = g_context.powerMonitor->getPower  (PowerMonitor::Rail::V5);
+            g_context.powerMonitor->refresh();
+            status.power_5v_voltage  = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V5);
+            status.power_5v_current  = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V5);
+            status.power_5v_power    = status.power_5v_voltage * status.power_5v_current;
 
             status.power_24v_voltage = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V24);
             status.power_24v_current = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V24);
-            status.power_24v_power   = g_context.powerMonitor->getPower  (PowerMonitor::Rail::V24);
+            status.power_24v_power   = status.power_24v_voltage * status.power_24v_current;
 
             g_context.faultMicro =
                 (status.mikona_flags & (1 << 4)) ||
@@ -172,5 +173,29 @@ int main()
     gpio_put(MAIN_BOARD_BUZZER_PIN, 0);
 
     multicore_launch_core1(core1_entry);
+
+    // TODO: remove debug loop
+    printf("Streaming power monitor readings...\n");
+    for (;;)
+    {
+        sleep_ms(250);
+        g_context.powerMonitor->refresh();
+
+        const float v24_V = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V24);
+        const float v24_I = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V24);
+        printf("  [V24] V=%.3fV  I=%.4fA  P=%.3fW\n", v24_V, v24_I, v24_V * v24_I);
+
+        const float v5_V = g_context.powerMonitor->getVoltage(PowerMonitor::Rail::V5);
+        const float v5_I = g_context.powerMonitor->getCurrent(PowerMonitor::Rail::V5);
+        printf("  [V5]  V=%.3fV  I=%.4fA  P=%.3fW\n", v5_V, v5_I, v5_V * v5_I);
+
+        const float elapsed = g_context.powerMonitor->getElapsedTime();
+        printf("  elapsed=%.2fs\n", elapsed);
+
+        printf("  [V24] E=%.3fmWh\n", g_context.powerMonitor->getEnergy(PowerMonitor::Rail::V24));
+        printf("  [V5]  E=%.3fmWh\n", g_context.powerMonitor->getEnergy(PowerMonitor::Rail::V5));
+        printf("---\n");
+    }
+
     core0_entry();
 }

@@ -58,40 +58,20 @@ bool PowerMonitor::init()
 
     m_connected = true;
 
-    // Diagnostic loop: accumulate for 250ms per window, then print averaged readings.
-    // Uses REFRESH (not REFRESH_V) so the VPOWER accumulator is properly reset each window.
-    // V and I come from the 8-sample rolling-average registers for stability.
-    printf("  Streaming readings (Ctrl-C to stop)...\n");
-    PAC194x5x_Refresh(&m_pacDevice);  // reset accumulators, start first window
+    return true;
+}
+
+bool PowerMonitor::refresh()
+{
+    if (!m_connected) return false;
+    PAC194x5x_Refresh(&m_pacDevice);
     sleep_ms(1);
-    for (;;)
-    {
-        sleep_ms(250);
-
-        // Latch accumulated VPOWER and reset for the next window
-        PAC194x5x_Refresh(&m_pacDevice);
-        sleep_ms(1);
-
-        for (uint8_t ch = 1; ch <= 2; ch++)
-        {
-            const char* name = (ch == 1) ? "V24" : "V5";
-            float V_mV = 0.0f, I_mA = 0.0f, P_mW = 0.0f;
-            PAC194x5x_GetVBUSn_AVG_real(&m_pacDevice, ch, &V_mV);
-            PAC194x5x_GetISENSEn_AVG_real(&m_pacDevice, ch, &I_mA);
-            PAC194x5x_GetVPOWERn_real(&m_pacDevice, ch, &P_mW);
-            printf("  [%s] V=%.3fV  I=%.4fA  P=%.3fW\n", name, V_mV / 1000.0f, I_mA / 1000.0f, P_mW / 1000.0f);
-        }
-        printf("---\n");
-    }
-
     return true;
 }
 
 float PowerMonitor::getVoltage(const Rail rail)
 {
     if (!m_connected) return 0.0f;
-    PAC194x5x_RefreshV(&m_pacDevice);
-    sleep_ms(1);
     float mV = 0.0f;
     PAC194x5x_GetVBUSn_AVG_real(&m_pacDevice, channelForRail(rail), &mV);
     return mV / 1000.0f;
@@ -100,19 +80,33 @@ float PowerMonitor::getVoltage(const Rail rail)
 float PowerMonitor::getCurrent(const Rail rail)
 {
     if (!m_connected) return 0.0f;
-    PAC194x5x_RefreshV(&m_pacDevice);
-    sleep_ms(1);
     float mA = 0.0f;
     PAC194x5x_GetISENSEn_AVG_real(&m_pacDevice, channelForRail(rail), &mA);
     return mA / 1000.0f;
 }
 
-float PowerMonitor::getPower(const Rail rail)
+float PowerMonitor::getElapsedTime()
 {
     if (!m_connected) return 0.0f;
-    PAC194x5x_RefreshV(&m_pacDevice);
-    sleep_ms(1);
-    float mW = 0.0f;
-    PAC194x5x_GetVPOWERn_real(&m_pacDevice, channelForRail(rail), &mW);
-    return mW / 1000.0f;
+    uint32_t accCount = 0;
+    PAC194x5x_GetAccumulatorCount(&m_pacDevice, &accCount);
+    return static_cast<float>(accCount) / kSampleRate;
 }
+
+float PowerMonitor::getEnergy(const Rail rail)
+{
+    if (!m_connected) return 0.0f;
+    float mWh = 0.0f;
+    PAC194x5x_GetEnergy(&m_pacDevice, channelForRail(rail), &mWh);
+    return mWh;
+}
+
+float PowerMonitor::getCoulomb(const Rail rail)
+{
+    if (!m_connected) return 0.0f;
+    float mAs = 0.0f;
+    PAC194x5x_GetCoulomb(&m_pacDevice, channelForRail(rail), &mAs);
+    return mAs;
+}
+
+
