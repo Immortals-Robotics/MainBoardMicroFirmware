@@ -16,5 +16,4 @@
 *.vsix
 
 # Cmake build folder
-build/
 out/
