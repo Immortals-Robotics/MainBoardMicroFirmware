@@ -1,3 +1,7 @@
+**This repo has been merged into [the main firmware repo](https://github.com/Immortals-Robotics/MainBoardFirmware).**
+
+---
+
 # MainBoardMicroFirmware
 Main board firmware running on an RP2040 microcontroller.
 
